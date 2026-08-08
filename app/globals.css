@@ -49,6 +49,30 @@
 }
 
 :root {
+  /* ── Arahami design tokens (mirror dari mobile) ───────────────── */
+  --arahami-primary:       #0095F6;
+  --arahami-primary-dark:  #0074CC;
+  --arahami-primary-light: #E0F2FE;
+  --arahami-bg:            #FAFAFA;
+  --arahami-surface:       #FFFFFF;
+  --arahami-border:        #DBDBDB;
+  --arahami-text:          #0A0A0A;
+  --arahami-text-muted:    #737373;
+  --arahami-text-subtle:   #A8A8A8;
+  --arahami-success:       #22C55E;
+  --arahami-success-light: #DCFCE7;
+  --arahami-error:         #EF4444;
+  --arahami-warning:       #F59E0B;
+  --arahami-xp-gold:       #FBBF24;
+  /* Mapel */
+  --arahami-mtk:   #6C63FF;
+  --arahami-indo:  #0095F6;
+  --arahami-ipa:   #10B981;
+  --arahami-ips:   #F59E0B;
+  --arahami-agama: #8B5CF6;
+  --arahami-seni:  #EC4899;
+  --arahami-pjok:  #F97316;
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
