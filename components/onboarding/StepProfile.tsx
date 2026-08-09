@@ -34,7 +34,7 @@ export function StepProfile({ data, onChange }: Props) {
           {GRADES.map(g => (
             <button
               key={g}
-              onClick={() => onChange({ childGrade: g, childTheme: '' })}
+              onClick={() => onChange({ childGrade: g, childTheme: '', topics: {}, manualTopicInputsBySubject: {} })}
               className={`px-4 py-2 rounded-xl border text-[14px] font-semibold transition-colors ${
                 data.childGrade === g
                   ? 'bg-[#E0F2FE] border-[#0095F6] text-[#0095F6]'

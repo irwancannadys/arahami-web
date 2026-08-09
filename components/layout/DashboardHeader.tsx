@@ -1,10 +1,36 @@
 'use client'
 
+import { useState } from 'react'
 import { useAuthContext } from '@/components/layout/AuthProvider'
 
 interface Props {
-  title:    string
+  title:     string
   subtitle?: string
+}
+
+function Avatar({ name, photoURL }: { name: string; photoURL: string | null }) {
+  const [imgFailed, setImgFailed] = useState(false)
+  const words   = (name ?? 'U').trim().split(/\s+/)
+  const initial = words.length >= 2
+    ? (words[0][0] + words[1][0]).toUpperCase()
+    : words[0][0].toUpperCase()
+
+  if (photoURL && !imgFailed) {
+    return (
+      <img
+        src={photoURL}
+        alt="avatar"
+        onError={() => setImgFailed(true)}
+        className="w-8 h-8 rounded-full border border-[#DBDBDB] object-cover"
+      />
+    )
+  }
+
+  return (
+    <div className="w-8 h-8 rounded-full bg-[#E0F2FE] flex items-center justify-center text-[#0095F6] text-[13px] font-bold shrink-0">
+      {initial}
+    </div>
+  )
 }
 
 export function DashboardHeader({ title, subtitle }: Props) {
@@ -19,23 +45,15 @@ export function DashboardHeader({ title, subtitle }: Props) {
         )}
       </div>
 
-      {/* User avatar */}
       {user && (
         <div className="flex items-center gap-2.5">
           <span className="text-[13px] text-[#737373] font-medium">
             {user.displayName ?? user.email}
           </span>
-          {user.photoURL ? (
-            <img
-              src={user.photoURL}
-              alt="avatar"
-              className="w-8 h-8 rounded-full border border-[#DBDBDB]"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-[#E0F2FE] flex items-center justify-center text-[#0095F6] text-[13px] font-bold">
-              {(user.displayName ?? user.email ?? 'U')[0].toUpperCase()}
-            </div>
-          )}
+          <Avatar
+            name={user.displayName ?? user.email ?? 'U'}
+            photoURL={user.photoURL}
+          />
         </div>
       )}
     </header>

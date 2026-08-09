@@ -479,6 +479,7 @@ export default function OnboardingPage() {
   })()
 
   const isLoadingActive = ls.phase !== 'idle'
+  const isSaving        = loading  // alias supaya lebih jelas di JSX
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -504,6 +505,19 @@ export default function OnboardingPage() {
           onContinue={onLoadingContinue}
           onRetry={ls.phase === 'error' ? onLoadingRetry : undefined}
         />
+      )}
+
+      {/* Save loading overlay */}
+      {isSaving && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-8 text-center space-y-4">
+            <div className="w-12 h-12 rounded-full border-4 border-[#BFDBFE] border-t-[#0095F6] animate-spin mx-auto" />
+            <div>
+              <p className="font-extrabold text-[16px]">Menyimpan Data Anak</p>
+              <p className="text-[13px] text-[#737373] mt-1">Sebentar ya, lagi diproses...</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Confirmation dialog — reuse existing photo topics */}

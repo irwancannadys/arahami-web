@@ -30,7 +30,33 @@ export default function BerandaPage() {
     return unsub
   }, [user, router])
 
-  if (loading) return null
+  if (loading) return (
+    <>
+      <DashboardHeader title="Beranda" subtitle="Overview anak kamu" />
+      <div className="p-6 space-y-4">
+        <div className="grid grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-white border border-[#DBDBDB] rounded-2xl p-5 space-y-2 animate-pulse">
+              <div className="h-3 w-12 bg-[#E5E7EB] rounded" />
+              <div className="h-8 w-16 bg-[#E5E7EB] rounded" />
+              <div className="h-3 w-20 bg-[#E5E7EB] rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="bg-white border border-[#DBDBDB] rounded-2xl p-5 space-y-4 animate-pulse">
+          <div className="h-3 w-24 bg-[#E5E7EB] rounded" />
+          <div className="grid grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="space-y-1.5">
+                <div className="h-2.5 w-10 bg-[#E5E7EB] rounded" />
+                <div className="h-4 w-24 bg-[#E5E7EB] rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  )
 
   const child = children.find(c => c.id === selectedId) ?? children[0]
 

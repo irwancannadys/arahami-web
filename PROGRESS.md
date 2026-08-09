@@ -1,7 +1,7 @@
 # Arahami Web — Development Progress
 
 > Created: Agustus 2026
-> Last updated: Agustus 2026 (session 10)
+> Last updated: Agustus 2026 (session 11)
 > Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Firebase · Groq AI · Tesseract.js · Sharp
 
 ---
@@ -49,8 +49,8 @@
 | Layout dashboard (sidebar + main) | ✅ | Nunito font, warna biru #0095F6 |
 | Tab Beranda — child selector + overview | ✅ | Multi-child selector, XP/level/streak |
 | Redirect ke /onboarding kalau belum ada anak | ✅ | |
-| **Tab Laporan** — hasil kuis + progress | ❌ | Next |
-| **Tab Reward** — approve/tolak hadiah | ❌ | KRITIS |
+| **Tab Laporan** — hasil kuis + progress | ❌ | |
+| **Tab Reward** — approve/tolak hadiah | 🔶 | UI + dummy data selesai, switch ke Firestore next |
 | **Tab Pesan** — kirim pesan ke anak | ❌ | |
 | Tab Pengaturan | ❌ | |
 
@@ -71,10 +71,12 @@
 ## Reward Flow
 | Item | Status |
 |---|---|
-| List reward request masuk | ❌ |
-| Approve reward + notif ke anak | ❌ |
-| Tolak reward + alasan | ❌ |
-| Riwayat reward | ❌ |
+| List reward request masuk | 🔶 | UI + dummy data, Firestore switch next |
+| Approve reward + optional note ke anak | 🔶 | UI selesai, Firestore switch next |
+| Tolak reward + alasan | 🔶 | UI selesai, Firestore switch next |
+| Riwayat reward (tab Disetujui/Ditolak) | 🔶 | UI selesai |
+| Detail kuis yang menghasilkan reward | 🔶 | Tampil mapel, topik, skor di modal |
+| Switch ke real Firestore data | ❌ | Ganti useState(DUMMY) → onSnapshot rewardsCol |
 
 ---
 
@@ -107,7 +109,7 @@
 | 4b | AI integrasi onboarding Path A — Kurikulum Merdeka (Groq, loading, fallback) | ✅ |
 | **4c** | **Foto Buku Path B — UI accordion + Python OCR service (PaddleOCR + OpenCV + Groq)** | ✅ |
 | 5 | Tab Beranda — child selector + overview | ✅ |
-| **6** | **Reward — approve/tolak** | ❌ Next |
+| **6** | **Reward — approve/tolak** | 🔶 UI selesai, real data next |
 | 7 | Tab Laporan (harian + grafik) | ❌ |
 | 8 | Tab Pesan (Thread + Chat) | ❌ |
 | 9 | Tab Pengaturan | ❌ |

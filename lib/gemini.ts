@@ -1,25 +1,46 @@
 import Groq from 'groq-sdk'
+import OpenAI from 'openai'
 
+// Groq — text tasks (generate topics, generate quiz)
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
-const MODEL = 'llama-3.3-70b-versatile'
+// OpenRouter — vision tasks (analyze photo)
+const openrouter = new OpenAI({
+  apiKey:  process.env.OPENROUTER_API_KEY ?? '',
+  baseURL: 'https://openrouter.ai/api/v1',
+  defaultHeaders: {
+    'HTTP-Referer': 'https://arahami-web.vercel.app',
+    'X-Title':      'Arahami',
+  },
+})
 
 export async function generateText(prompt: string): Promise<string> {
   const res = await groq.chat.completions.create({
-    model:    MODEL,
+    model:    'llama-3.3-70b-versatile',
     messages: [{ role: 'user', content: prompt }],
   })
   return res.choices[0]?.message?.content ?? ''
 }
 
-// Groq tidak support vision — fallback ke text-based extraction
 export async function generateTextWithImage(
   prompt:      string,
-  _imageBase64: string,
-  _mimeType:    string,
+  imageBase64: string,
+  mimeType:    string,
 ): Promise<string> {
-  // Untuk foto buku, kirim prompt saja (image vision butuh Gemini)
-  return generateText(prompt)
+  // Vision via OpenRouter — llama vision model (free)
+  const res = await openrouter.chat.completions.create({
+    model: 'nvidia/nemotron-nano-12b-v2-vl:free',
+    messages: [
+      {
+        role:    'user',
+        content: [
+          { type: 'text',      text:      prompt },
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+        ],
+      },
+    ],
+  })
+  return res.choices[0]?.message?.content ?? ''
 }
 
 export const SUBJECT_LABELS: Record<string, string> = {
@@ -40,6 +61,23 @@ export function checkApiSecret(req: Request): boolean {
 }
 
 export function parseGeminiJson<T>(text: string): T {
-  const clean = text.replace(/```json\n?|\n?```/g, '').trim()
-  return JSON.parse(clean) as T
+  // Hapus markdown code blocks
+  let clean = text.replace(/```json\n?|\n?```/g, '').trim()
+
+  // Coba parse langsung dulu
+  try {
+    return JSON.parse(clean) as T
+  } catch {
+    // Fallback: extract JSON array atau object dengan regex
+    const arrayMatch = clean.match(/\[[\s\S]*\]/)
+    const objMatch   = clean.match(/\{[\s\S]*\}/)
+    const extracted  = arrayMatch?.[0] ?? objMatch?.[0] ?? clean
+
+    // Hapus trailing commas sebelum ] atau }
+    const fixed = extracted
+      .replace(/,\s*([\]}])/g, '$1')
+      .replace(/\/\/.*/g, '')  // hapus komentar inline
+
+    return JSON.parse(fixed) as T
+  }
 }
