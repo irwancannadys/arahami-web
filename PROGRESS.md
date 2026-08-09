@@ -1,7 +1,7 @@
 # Arahami Web — Development Progress
 
 > Created: Agustus 2026
-> Last updated: Agustus 2026 (session 11)
+> Last updated: Agustus 2026 (session 12)
 > Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Firebase · Groq AI · Tesseract.js · Sharp
 
 ---
@@ -49,8 +49,9 @@
 | Layout dashboard (sidebar + main) | ✅ | Nunito font, warna biru #0095F6 |
 | Tab Beranda — child selector + overview | ✅ | Multi-child selector, XP/level/streak |
 | Redirect ke /onboarding kalau belum ada anak | ✅ | |
-| **Tab Laporan** — hasil kuis + progress | ❌ | |
+| **Tab Laporan** — hasil kuis + progress | 🔶 | UI + dummy + recharts selesai, switch ke Firestore next |
 | **Tab Reward** — approve/tolak hadiah | 🔶 | UI + dummy data selesai, switch ke Firestore next |
+| **Tab Pesan** — Kabar + Chat | 🔶 | UI + dummy selesai, switch ke Firestore next |
 | **Tab Pesan** — kirim pesan ke anak | ❌ | |
 | Tab Pengaturan | ❌ | |
 
@@ -76,7 +77,7 @@
 | Tolak reward + alasan | 🔶 | UI selesai, Firestore switch next |
 | Riwayat reward (tab Disetujui/Ditolak) | 🔶 | UI selesai |
 | Detail kuis yang menghasilkan reward | 🔶 | Tampil mapel, topik, skor di modal |
-| Switch ke real Firestore data | ❌ | Ganti useState(DUMMY) → onSnapshot rewardsCol |
+| Switch ke real Firestore data | ❌ | TODO: ganti useState(DUMMY) → onSnapshot(rewardsCol) + sessionsCol lazy fetch |
 
 ---
 
