@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# OCR language data (downloaded otomatis oleh Tesseract, tidak perlu di-commit)
+*.traineddata
+
+# Python OCR service
+ocr-service/venv/
+ocr-service/__pycache__/
+ocr-service/*.pyc

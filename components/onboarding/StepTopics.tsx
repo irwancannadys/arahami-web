@@ -10,20 +10,31 @@ export function StepTopics({ data, onChange }: Props) {
   const subjects = Object.keys(data.topics)
   const [active, setActive] = useState(subjects[0] ?? '')
 
-  const isCustom   = active in data.manualTopicInputsBySubject
   const current    = data.topics[active] ?? []
   const manualList = data.manualTopicInputsBySubject[active] ?? ['']
-  const selectedCount = current.filter(t => t.selected).length
+  const isCustom   = active in data.manualTopicInputsBySubject && current.length === 0
 
+  const selectedCount = current.filter(t => t.selected).length
+  const allSelected   = current.length > 0 && current.every(t => t.selected)
+
+  // ── Toggle single topic ─────────────────────────────────────────────────
   function toggleTopic(subject: string, idx: number) {
-    const list = [...(data.topics[subject] ?? [])]
-    list[idx]  = { ...list[idx], selected: !list[idx].selected }
+    const list  = [...(data.topics[subject] ?? [])]
+    list[idx]   = { ...list[idx], selected: !list[idx].selected }
     onChange({ topics: { ...data.topics, [subject]: list } })
   }
 
+  // ── Select / deselect all for active subject ────────────────────────────
+  function toggleAll() {
+    const list    = [...(data.topics[active] ?? [])]
+    const updated = list.map(t => ({ ...t, selected: !allSelected }))
+    onChange({ topics: { ...data.topics, [active]: updated } })
+  }
+
+  // ── Manual input helpers ────────────────────────────────────────────────
   function updateManualInput(subject: string, idx: number, value: string) {
-    const inputs = [...(data.manualTopicInputsBySubject[subject] ?? [''])]
-    inputs[idx]  = value
+    const inputs  = [...(data.manualTopicInputsBySubject[subject] ?? [''])]
+    inputs[idx]   = value
     onChange({ manualTopicInputsBySubject: { ...data.manualTopicInputsBySubject, [subject]: inputs } })
   }
 
@@ -33,7 +44,7 @@ export function StepTopics({ data, onChange }: Props) {
   }
 
   function confirmManualTopics(subject: string) {
-    const inputs     = data.manualTopicInputsBySubject[subject] ?? []
+    const inputs      = data.manualTopicInputsBySubject[subject] ?? []
     const validTopics = inputs
       .map(s => s.trim())
       .filter(s => s.length > 0)
@@ -50,10 +61,17 @@ export function StepTopics({ data, onChange }: Props) {
       topics: { ...data.topics, [subject]: merged },
       manualTopicInputsBySubject: {
         ...data.manualTopicInputsBySubject,
-        [subject]: [''],  // reset ke 1 field kosong bisa tambah lagi
+        [subject]: [''],
       },
     })
   }
+
+  function showManualInput(subject: string) {
+    if (data.manualTopicInputsBySubject[subject]) return  // already open
+    onChange({ manualTopicInputsBySubject: { ...data.manualTopicInputsBySubject, [subject]: [''] } })
+  }
+
+  const hasManualSection = active in data.manualTopicInputsBySubject
 
   return (
     <div className="space-y-4">
@@ -65,8 +83,8 @@ export function StepTopics({ data, onChange }: Props) {
       {/* Subject tabs */}
       <div className="flex gap-1.5 flex-wrap">
         {subjects.map(subject => {
-          const count   = data.topics[subject]?.filter(t => t.selected).length ?? 0
-          const custom  = subject in data.manualTopicInputsBySubject
+          const count  = data.topics[subject]?.filter(t => t.selected).length ?? 0
+          const custom = subject in data.manualTopicInputsBySubject && (data.topics[subject]?.length ?? 0) === 0
           return (
             <button
               key={subject}
@@ -89,7 +107,22 @@ export function StepTopics({ data, onChange }: Props) {
 
       {/* Topics area */}
       <div className="space-y-2">
-        {/* Topik yang sudah ada (dari kurikulum atau sudah dikonfirmasi) */}
+        {/* Select All row — only show if there are preset topics */}
+        {current.length > 0 && (
+          <div className="flex items-center justify-between pb-1 border-b border-[#DBDBDB]">
+            <span className="text-[12px] text-[#737373]">
+              {selectedCount} dari {current.length} dipilih
+            </span>
+            <button
+              onClick={toggleAll}
+              className="text-[12px] font-semibold text-[#0095F6] hover:underline"
+            >
+              {allSelected ? 'Hapus Semua' : 'Centang Semua'}
+            </button>
+          </div>
+        )}
+
+        {/* Preset / AI topics */}
         {current.map((topic, idx) => (
           <label
             key={idx}
@@ -105,11 +138,11 @@ export function StepTopics({ data, onChange }: Props) {
           </label>
         ))}
 
-        {/* Manual input untuk custom subject */}
-        {isCustom && (
+        {/* Manual input section — for custom subjects OR when user taps "Tambah topik" */}
+        {hasManualSection && (
           <div className="mt-3 space-y-2 border-t border-[#DBDBDB] pt-3">
             <p className="text-[12px] font-semibold text-[#737373]">
-              Mapel kustom — tulis topik secara manual:
+              {isCustom ? 'Mapel kustom — tulis topik secara manual:' : 'Tambah topik manual:'}
             </p>
             {manualList.map((val, idx) => (
               <input
@@ -139,15 +172,25 @@ export function StepTopics({ data, onChange }: Props) {
             </div>
           </div>
         )}
+
+        {/* "Tambah topik manual" trigger — for standard subjects that don't have manual section yet */}
+        {!hasManualSection && (
+          <button
+            onClick={() => showManualInput(active)}
+            className="w-full text-[12px] text-[#737373] hover:text-[#0095F6] py-2 border border-dashed border-[#DBDBDB] rounded-xl hover:border-[#0095F6] transition-colors"
+          >
+            + Tambah topik manual
+          </button>
+        )}
       </div>
 
-      {/* Validation hint */}
-      {selectedCount === 0 && !isCustom && (
+      {/* Validation hints */}
+      {selectedCount === 0 && !isCustom && current.length > 0 && (
         <p className="text-[12px] text-red-500">
           Pilih minimal 1 topik untuk {SUBJECT_LABELS[active] ?? active}
         </p>
       )}
-      {selectedCount === 0 && isCustom && current.length === 0 && (
+      {isCustom && current.length === 0 && (
         <p className="text-[12px] text-amber-600">
           Tulis topik lalu klik "Simpan Topik" untuk melanjutkan
         </p>
