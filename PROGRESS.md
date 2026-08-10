@@ -1,7 +1,7 @@
 # Arahami Web — Development Progress
 
 > Created: Agustus 2026
-> Last updated: Agustus 2026 (session 14)
+> Last updated: Agustus 2026 (session 15)
 > Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Firebase · Groq AI · Tesseract.js · Sharp
 
 ---
@@ -189,6 +189,26 @@
 ---
 
 ## 🔮 Future / Notes
+
+### 💡 Parenting Tips Feed di Beranda (Ide — Belum Diimplementasi)
+
+**Konsep:** Di bawah hero card anak, tambahkan feed bergaya social media yang berisi tips parenting, nasihat untuk anak, dan info perkembangan anak — di-generate oleh Groq AI setiap hari.
+
+**Detail:**
+- Generate 5 tips/hari via Groq llama-3.3-70b (sudah ada API key)
+- Konten: tips parenting, nasihat belajar, perkembangan anak SD kelas [N], motivasi
+- Bisa disesuaikan dengan kelas anak (kelas 1 vs kelas 6 dapat tips berbeda)
+- Cache per hari di Firestore agar tidak panggil AI tiap refresh: `/tips/{date}/{grade}/`
+- Kartu tip: teks, emoji, label kategori (Parenting / Belajar / Motivasi)
+- Tombol **Share**: bisa bagikan ke WA, IG Story, atau salin teks
+- Tombol **Kirim ke Anak**: langsung kirim via Tab Pesan → Kabar
+
+**Tech:**
+- API route baru: `POST /api/ai/generate-tips` → terima `{ kelas, date }` → return 5 tips
+- Cache di Firestore supaya tidak re-generate kalau sudah ada untuk hari itu
+- Frontend: horizontal scroll card atau vertical feed di Beranda
+
+**Status:** ❌ Defer sampai semua fitur utama selesai
 
 ### Tema Favorit (Child Theme)
 - Saat ini: tersimpan di Firestore (`child.theme`) tapi hanya digunakan sebagai identifier
