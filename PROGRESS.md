@@ -1,7 +1,7 @@
 # Arahami Web — Development Progress
 
 > Created: Agustus 2026
-> Last updated: Agustus 2026 (session 13)
+> Last updated: Agustus 2026 (session 14)
 > Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Firebase · Groq AI · Tesseract.js · Sharp
 
 ---

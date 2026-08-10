@@ -5,8 +5,9 @@ import {
   onSnapshot, addDoc, query, orderBy, serverTimestamp,
 } from 'firebase/firestore'
 import { useAuthContext } from '@/components/layout/AuthProvider'
-import { childrenCol, threadsCol, chatsCol } from '@/lib/firebase/firestore-paths'
-import type { Child, ThreadMessage, ChatMessage } from '@/lib/types'
+import { useChild } from '@/lib/context/ChildContext'
+import { threadsCol, chatsCol } from '@/lib/firebase/firestore-paths'
+import type { ThreadMessage, ChatMessage } from '@/lib/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -234,109 +235,63 @@ function ChatTab({ childName, chats, onSend }: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PesanPage() {
-  const { user } = useAuthContext()
+  const { user }                                = useAuthContext()
+  const { selected: child, loading: childLoading } = useChild()
 
-  const [children,    setChildren]    = useState<Child[]>([])
-  const [threadMap,   setThreadMap]   = useState<Record<string, ThreadMessage[]>>({})
-  const [chatMap,     setChatMap]     = useState<Record<string, ChatMessage[]>>({})
-  const [activeTab,   setActiveTab]   = useState<Tab>('kabar')
-  const [activeChild, setActiveChild] = useState<Child | null>(null)
-  const [loadingInit, setLoadingInit] = useState(true)
+  const [threads,    setThreads]    = useState<ThreadMessage[]>([])
+  const [chats,      setChats]      = useState<ChatMessage[]>([])
+  const [activeTab,  setActiveTab]  = useState<Tab>('kabar')
+  const [loadingMsg, setLoadingMsg] = useState(true)
 
-  // Listen children
   useEffect(() => {
-    if (!user) return
-    const unsub = onSnapshot(childrenCol(user.uid), snap => {
-      const kids = snap.docs.map(d => ({ id: d.id, ...d.data() } as Child))
-      setChildren(kids)
-      if (kids.length && !activeChild) setActiveChild(kids[0])
-      setLoadingInit(false)
-    })
-    return unsub
-  }, [user])
-
-  // Listen threads + chats per child
-  useEffect(() => {
-    if (!user || !children.length) return
+    if (!user || !child) return
+    setLoadingMsg(true)
     const unsubs: (() => void)[] = []
 
-    children.forEach(c => {
-      const qThreads = query(threadsCol(user.uid, c.id), orderBy('createdAt', 'desc'))
-      unsubs.push(onSnapshot(qThreads, snap => {
-        setThreadMap(prev => ({
-          ...prev,
-          [c.id]: snap.docs.map(d => ({ id: d.id, ...d.data() } as ThreadMessage)),
-        }))
-      }, () => {
-        unsubs.push(onSnapshot(threadsCol(user.uid, c.id), snap => {
-          setThreadMap(prev => ({
-            ...prev,
-            [c.id]: snap.docs.map(d => ({ id: d.id, ...d.data() } as ThreadMessage)),
-          }))
-        }))
+    const qThreads = query(threadsCol(user.uid, child.id), orderBy('createdAt', 'desc'))
+    unsubs.push(onSnapshot(qThreads, snap => {
+      setThreads(snap.docs.map(d => ({ id: d.id, ...d.data() } as ThreadMessage)))
+      setLoadingMsg(false)
+    }, () => {
+      unsubs.push(onSnapshot(threadsCol(user.uid, child.id), snap => {
+        setThreads(snap.docs.map(d => ({ id: d.id, ...d.data() } as ThreadMessage)))
+        setLoadingMsg(false)
       }))
+    }))
 
-      const qChats = query(chatsCol(user.uid, c.id), orderBy('createdAt', 'asc'))
-      unsubs.push(onSnapshot(qChats, snap => {
-        setChatMap(prev => ({
-          ...prev,
-          [c.id]: snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)),
-        }))
-      }, () => {
-        unsubs.push(onSnapshot(chatsCol(user.uid, c.id), snap => {
-          setChatMap(prev => ({
-            ...prev,
-            [c.id]: snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)),
-          }))
-        }))
+    const qChats = query(chatsCol(user.uid, child.id), orderBy('createdAt', 'asc'))
+    unsubs.push(onSnapshot(qChats, snap => {
+      setChats(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)))
+    }, () => {
+      unsubs.push(onSnapshot(chatsCol(user.uid, child.id), snap => {
+        setChats(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)))
       }))
-    })
+    }))
 
     return () => unsubs.forEach(u => u())
-  }, [user, children])
+  }, [user, child])
 
-  // Unread badge
-  const unreadCount = activeChild
-    ? (chatMap[activeChild.id] ?? []).filter(c => !c.isRead && c.sender === 'child').length
-    : 0
+  const unreadCount = chats.filter(c => !c.isRead && c.sender === 'child').length
 
   async function postThread(text: string) {
-    if (!user || !activeChild) return
-    await addDoc(threadsCol(user.uid, activeChild.id), {
-      text, sender: 'parent', replies: [], createdAt: serverTimestamp(),
-    })
+    if (!user || !child) return
+    await addDoc(threadsCol(user.uid, child.id), { text, sender: 'parent', replies: [], createdAt: serverTimestamp() })
   }
 
   async function sendChat(text: string) {
-    if (!user || !activeChild) return
-    await addDoc(chatsCol(user.uid, activeChild.id), {
-      text, sender: 'parent', isRead: true, createdAt: serverTimestamp(),
-    })
+    if (!user || !child) return
+    await addDoc(chatsCol(user.uid, child.id), { text, sender: 'parent', isRead: true, createdAt: serverTimestamp() })
   }
+
+  const isLoading = childLoading || loadingMsg
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5">
-
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="font-extrabold text-[22px]">Pesan</h1>
-          <p className="text-[13px] text-[#737373] mt-0.5">Komunikasi dengan anak</p>
-        </div>
-        {children.length > 1 && (
-          <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">
-            {children.map(c => (
-              <button
-                key={c.id}
-                onClick={() => setActiveChild(c)}
-                className={`px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-colors ${
-                  activeChild?.id === c.id ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
-          </div>
-        )}
+      <div>
+        <h1 className="font-extrabold text-[22px]">Pesan</h1>
+        <p className="text-[13px] text-[#9CA3AF] mt-0.5">
+          {child ? `Komunikasi dengan ${child.name}` : 'Komunikasi dengan anak'}
+        </p>
       </div>
 
       <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">
@@ -348,27 +303,17 @@ export default function PesanPage() {
           className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-colors ${activeTab === 'chat' ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
           💬 Chat
           {unreadCount > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-[#EF4444] text-white text-[10px] font-bold">
-              {unreadCount}
-            </span>
+            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-[#EF4444] text-white text-[10px] font-bold">{unreadCount}</span>
           )}
         </button>
       </div>
 
-      {loadingInit ? <Skeleton /> : !activeChild ? (
-        <div className="text-center py-12 text-[#737373]">Belum ada anak terdaftar</div>
+      {isLoading ? <Skeleton /> : !child ? (
+        <div className="text-center py-12 text-[#9CA3AF]">Belum ada anak terdaftar</div>
       ) : activeTab === 'kabar' ? (
-        <KabarTab
-          childName={activeChild.name}
-          threads={threadMap[activeChild.id] ?? []}
-          onPost={postThread}
-        />
+        <KabarTab childName={child.name} threads={threads} onPost={postThread} />
       ) : (
-        <ChatTab
-          childName={activeChild.name}
-          chats={chatMap[activeChild.id] ?? []}
-          onSend={sendChat}
-        />
+        <ChatTab childName={child.name} chats={chats} onSend={sendChat} />
       )}
     </div>
   )

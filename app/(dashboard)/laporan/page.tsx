@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { onSnapshot, query, orderBy } from 'firebase/firestore'
 import { useAuthContext } from '@/components/layout/AuthProvider'
-import { childrenCol, sessionsCol, topicsCol } from '@/lib/firebase/firestore-paths'
-import type { Child, QuizSession, Topic } from '@/lib/types'
+import { useChild } from '@/lib/context/ChildContext'
+import { sessionsCol, topicsCol } from '@/lib/firebase/firestore-paths'
+import type { QuizSession, Topic } from '@/lib/types'
 import { subjectDisplayName } from '@/lib/types'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -130,153 +131,104 @@ function SessionCard({ session }: { session: SessionWithChild }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function LaporanPage() {
-  const { user } = useAuthContext()
+  const { user }                     = useAuthContext()
+  const { selected, loading: childLoading } = useChild()
 
-  const [children,    setChildren]    = useState<Child[]>([])
-  const [sessionMap,  setSessionMap]  = useState<Record<string, QuizSession[]>>({})
-  const [topicMap,    setTopicMap]    = useState<Record<string, Topic[]>>({})
-  const [loadingInit, setLoadingInit] = useState(true)
+  const [sessions,    setSessions]    = useState<QuizSession[]>([])
+  const [topics,      setTopics]      = useState<Topic[]>([])
+  const [loadingData, setLoadingData] = useState(true)
+  const [period,      setPeriod]      = useState<Period>('7 Hari')
 
-  const [child,  setChild]  = useState('Semua')
-  const [period, setPeriod] = useState<Period>('7 Hari')
-
-  // Listen children
   useEffect(() => {
-    if (!user) return
-    const unsub = onSnapshot(childrenCol(user.uid), snap => {
-      const kids = snap.docs.map(d => ({ id: d.id, ...d.data() } as Child))
-      setChildren(kids)
-      setLoadingInit(false)
-    })
-    return unsub
-  }, [user])
-
-  // Listen sessions + topics per child
-  useEffect(() => {
-    if (!user || !children.length) return
+    if (!user || !selected) return
+    setLoadingData(true)
     const unsubs: (() => void)[] = []
 
-    children.forEach(c => {
-      // Sessions
-      const qSessions = query(sessionsCol(user.uid, c.id), orderBy('date', 'desc'))
-      unsubs.push(onSnapshot(qSessions, snap => {
-        setSessionMap(prev => ({
-          ...prev,
-          [c.id]: snap.docs.map(d => ({ id: d.id, ...d.data() } as QuizSession)),
-        }))
-      }, () => {
-        // Fallback without orderBy if index missing
-        unsubs.push(onSnapshot(sessionsCol(user.uid, c.id), snap => {
-          setSessionMap(prev => ({
-            ...prev,
-            [c.id]: snap.docs.map(d => ({ id: d.id, ...d.data() } as QuizSession)),
-          }))
-        }))
+    // Sessions
+    const qSessions = query(sessionsCol(user.uid, selected.id), orderBy('date', 'desc'))
+    unsubs.push(onSnapshot(qSessions, snap => {
+      setSessions(snap.docs.map(d => ({ id: d.id, ...d.data() } as QuizSession)))
+      setLoadingData(false)
+    }, () => {
+      unsubs.push(onSnapshot(sessionsCol(user.uid, selected.id), snap => {
+        setSessions(snap.docs.map(d => ({ id: d.id, ...d.data() } as QuizSession)))
+        setLoadingData(false)
       }))
+    }))
 
-      // Topics
-      unsubs.push(onSnapshot(topicsCol(user.uid, c.id), snap => {
-        setTopicMap(prev => ({
-          ...prev,
-          [c.id]: snap.docs.map(d => ({ id: d.id, ...d.data() } as Topic)),
-        }))
-      }))
-    })
+    // Topics
+    unsubs.push(onSnapshot(topicsCol(user.uid, selected.id), snap => {
+      setTopics(snap.docs.map(d => ({ id: d.id, ...d.data() } as Topic)))
+    }))
 
     return () => unsubs.forEach(u => u())
-  }, [user, children])
-
-  // Flatten & filter
-  const childNames = ['Semua', ...children.map(c => c.name)]
+  }, [user, selected])
 
   const cutoffDays = period === '7 Hari' ? 7 : period === '30 Hari' ? 30 : 9999
-  const allSessions: SessionWithChild[] = children
-    .flatMap(c => (sessionMap[c.id] ?? []).map(s => ({ ...s, childName: c.name })))
-    .filter(s => child === 'Semua' || s.childName === child)
+  const filtered   = sessions
     .filter(s => {
       const ms = toMs(s.date)
       return ms ? Math.floor((Date.now() - ms) / 86400000) < cutoffDays : true
     })
     .sort((a, b) => toMs(b.date) - toMs(a.date))
 
-  // Stats
-  const totalKuis = allSessions.length
-  const avgScore  = totalKuis ? Math.round(allSessions.reduce((s, r) => s + r.score, 0) / totalKuis) : 0
-  const totalXP   = allSessions.reduce((s, r) => s + xpFromScore(r.score, r.totalQ), 0)
+  const totalKuis = filtered.length
+  const avgScore  = totalKuis ? Math.round(filtered.reduce((s, r) => s + r.score, 0) / totalKuis) : 0
+  const totalXP   = filtered.reduce((s, r) => s + xpFromScore(r.score, r.totalQ), 0)
 
-  // XP chart
   const xpByDay = Array.from({ length: 7 }, (_, i) => {
     const targetDay = 6 - i
     const day = daysAgo(targetDay).toLocaleDateString('id-ID', { weekday: 'short' })
-    const xp  = allSessions
-      .filter(s => {
-        const ms = toMs(s.date)
-        return ms ? Math.floor((Date.now() - ms) / 86400000) === targetDay : false
-      })
+    const xp  = filtered
+      .filter(s => { const ms = toMs(s.date); return ms ? Math.floor((Date.now() - ms) / 86400000) === targetDay : false })
       .reduce((sum, s) => sum + xpFromScore(s.score, s.totalQ), 0)
     return { day, xp }
   })
 
-  // Progress per subject
-  const allTopics: (Topic & { childName: string })[] = children
-    .flatMap(c => (topicMap[c.id] ?? []).map(t => ({ ...t, childName: c.name })))
-    .filter(t => child === 'Semua' || t.childName === child)
-
-  const subjects = [...new Set(allTopics.map(t => t.subject))]
+  const subjects = [...new Set(topics.map(t => t.subject))]
   const progress = subjects.map(sub => {
-    const all  = allTopics.filter(t => t.subject === sub)
+    const all  = topics.filter(t => t.subject === sub)
     const done = all.filter(t => t.isDone).length
     return { subject: sub, done, total: all.length, pct: all.length ? Math.round((done / all.length) * 100) : 0 }
   }).sort((a, b) => b.pct - a.pct)
 
+  const isLoading = childLoading || loadingData
+
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
 
-      {/* Header + filters */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-extrabold text-[22px]">Laporan</h1>
-          <p className="text-[13px] text-[#737373] mt-0.5">Progress belajar anak</p>
+          <p className="text-[13px] text-[#9CA3AF] mt-0.5">
+            {selected ? `Progress ${selected.name}` : 'Progress belajar anak'}
+          </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {childNames.length > 2 && (
-            <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">
-              {childNames.map(c => (
-                <button key={c} onClick={() => setChild(c)}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${child === c ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
-                  {c}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">
-            {PERIODS.map(p => (
-              <button key={p} onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${period === p ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
-                {p}
-              </button>
-            ))}
-          </div>
+        <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">
+          {PERIODS.map(p => (
+            <button key={p} onClick={() => setPeriod(p)}
+              className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${period === p ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
+              {p}
+            </button>
+          ))}
         </div>
       </div>
 
-      {loadingInit ? <Skeleton /> : (
+      {isLoading ? <Skeleton /> : (
         <>
-          {/* Stat cards */}
           <div className="grid grid-cols-3 gap-4">
-            <StatCard label="Total Kuis"     value={totalKuis} sub="sesi selesai"    color="#0095F6" />
-            <StatCard label="Rata-rata Skor" value={avgScore}  sub="dari 100"        color="#22C55E" />
-            <StatCard label="Total XP"       value={totalXP}   sub="poin diperoleh"  color="#FBBF24" />
+            <StatCard label="Total Kuis"     value={totalKuis} sub="sesi selesai"   color="#0095F6" />
+            <StatCard label="Rata-rata Skor" value={avgScore}  sub="dari 100"       color="#22C55E" />
+            <StatCard label="Total XP"       value={totalXP}   sub="poin diperoleh" color="#FBBF24" />
           </div>
 
-          {/* XP chart */}
-          <div className="bg-white border border-[#DBDBDB] rounded-2xl p-5 space-y-4">
+          <div className="bg-white border border-[#E8EAF0] rounded-2xl p-5 space-y-4 shadow-sm">
             <p className="text-[13px] font-bold">XP Harian</p>
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={xpByDay} barSize={28} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#737373' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#A8A8A8' }} axisLine={false} tickLine={false} />
-                <Tooltip content={<XpTooltip />} cursor={{ fill: '#F3F4F6', radius: 8 }} />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#D1D5DB' }} axisLine={false} tickLine={false} />
+                <Tooltip content={<XpTooltip />} cursor={{ fill: '#F5F7FA', radius: 8 }} />
                 <Bar dataKey="xp" radius={[6,6,0,0]}>
                   {xpByDay.map((e, i) => <Cell key={i} fill={e.xp > 0 ? '#FBBF24' : '#E5E7EB'} />)}
                 </Bar>
@@ -284,16 +236,15 @@ export default function LaporanPage() {
             </ResponsiveContainer>
           </div>
 
-          {/* Progress mapel */}
           {progress.length > 0 && (
-            <div className="bg-white border border-[#DBDBDB] rounded-2xl p-5 space-y-4">
+            <div className="bg-white border border-[#E8EAF0] rounded-2xl p-5 space-y-4 shadow-sm">
               <p className="text-[13px] font-bold">Progress Topik per Mapel</p>
               <div className="space-y-3">
                 {progress.map(({ subject, done, total, pct }) => (
                   <div key={subject} className="space-y-1.5">
                     <div className="flex justify-between">
                       <span className="text-[13px] font-semibold">{subjectDisplayName(subject)}</span>
-                      <span className="text-[12px] text-[#737373]">{done}/{total} topik</span>
+                      <span className="text-[12px] text-[#9CA3AF]">{done}/{total} topik</span>
                     </div>
                     <div className="h-2.5 bg-[#F3F4F6] rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all duration-700"
@@ -305,19 +256,18 @@ export default function LaporanPage() {
             </div>
           )}
 
-          {/* Riwayat */}
           <div className="space-y-3">
             <p className="text-[13px] font-bold">
               Riwayat Kuis
-              <span className="ml-2 text-[#737373] font-normal">({allSessions.length} sesi)</span>
+              <span className="ml-2 text-[#9CA3AF] font-normal">({filtered.length} sesi)</span>
             </p>
-            {allSessions.length === 0 ? (
+            {filtered.length === 0 ? (
               <div className="text-center py-12 space-y-2">
                 <p className="text-3xl">📊</p>
-                <p className="text-[#737373] font-semibold">Belum ada data untuk periode ini</p>
+                <p className="text-[#9CA3AF] font-semibold">Belum ada data untuk periode ini</p>
               </div>
             ) : (
-              allSessions.map(s => <SessionCard key={s.id} session={s} />)
+              filtered.map(s => <SessionCard key={s.id} session={{ ...s, childName: selected?.name ?? '' }} />)
             )}
           </div>
         </>

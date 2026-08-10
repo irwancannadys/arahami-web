@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { query, orderBy, onSnapshot, doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase/config'
 import { useAuthContext } from '@/components/layout/AuthProvider'
-import { childrenCol, rewardsCol } from '@/lib/firebase/firestore-paths'
-import type { Reward, Child, QuizSession } from '@/lib/types'
+import { useChild } from '@/lib/context/ChildContext'
+import { rewardsCol } from '@/lib/firebase/firestore-paths'
+import type { Reward, QuizSession } from '@/lib/types'
 import { subjectDisplayName } from '@/lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -225,67 +226,46 @@ function EmptyState({ tab }: { tab: Tab }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function RewardPage() {
-  const { user } = useAuthContext()
+  const { user }                            = useAuthContext()
+  const { selected: child, loading: childLoading } = useChild()
 
-  const [children,       setChildren]       = useState<Child[]>([])
-  const [rewardMap,      setRewardMap]      = useState<Record<string, Reward[]>>({})
+  const [rewards,        setRewards]        = useState<Reward[]>([])
   const [sessionCache,   setSessionCache]   = useState<Record<string, QuizSession | null>>({})
-  const [selected,       setSelected]       = useState<RewardWithChild | null>(null)
+  const [selectedReward, setSelectedReward] = useState<RewardWithChild | null>(null)
   const [loadingSession, setLoadingSession] = useState(false)
   const [actionLoading,  setActionLoading]  = useState(false)
   const [activeTab,      setActiveTab]      = useState<Tab>('Menunggu')
-  const [loadingInit,    setLoadingInit]    = useState(true)
+  const [loadingRewards, setLoadingRewards] = useState(true)
 
-  // Listen children
   useEffect(() => {
-    if (!user) return
-    const unsub = onSnapshot(childrenCol(user.uid), snap => {
-      setChildren(snap.docs.map(d => ({ id: d.id, ...d.data() } as Child)))
-      setLoadingInit(false)
-    })
-    return unsub
-  }, [user])
-
-  // Listen rewards per child
-  useEffect(() => {
-    if (!user || !children.length) return
-    const unsubs = children.map(child => {
-      const q = query(rewardsCol(user.uid, child.id), orderBy('createdAt', 'desc'))
-      return onSnapshot(q, snap => {
-        setRewardMap(prev => ({
-          ...prev,
-          [child.id]: snap.docs.map(d => ({ id: d.id, ...d.data() } as Reward)),
-        }))
-      }, () => {
-        // Firestore index missing — fetch without orderBy
-        return onSnapshot(rewardsCol(user.uid, child.id), snap => {
-          setRewardMap(prev => ({
-            ...prev,
-            [child.id]: snap.docs.map(d => ({ id: d.id, ...d.data() } as Reward)),
-          }))
-        })
+    if (!user || !child) return
+    setLoadingRewards(true)
+    const q = query(rewardsCol(user.uid, child.id), orderBy('createdAt', 'desc'))
+    const unsub = onSnapshot(q, snap => {
+      setRewards(snap.docs.map(d => ({ id: d.id, ...d.data() } as Reward)))
+      setLoadingRewards(false)
+    }, () => {
+      onSnapshot(rewardsCol(user.uid, child.id), snap => {
+        setRewards(snap.docs.map(d => ({ id: d.id, ...d.data() } as Reward)))
+        setLoadingRewards(false)
       })
     })
-    return () => unsubs.forEach(u => u())
-  }, [user, children])
+    return unsub
+  }, [user, child])
 
-  // Flatten
-  const allRewards: RewardWithChild[] = children
-    .flatMap(c => (rewardMap[c.id] ?? []).map(r => ({ ...r, childName: c.name })))
+  const withChild: RewardWithChild[] = rewards
+    .map(r => ({ ...r, childName: child?.name ?? '' }))
     .sort((a, b) => toMs(b.createdAt) - toMs(a.createdAt))
 
-  const filtered     = allRewards.filter(r => r.status === TAB_STATUS[activeTab])
-  const pendingCount = allRewards.filter(r => r.status === 'PENDING').length
+  const filtered     = withChild.filter(r => r.status === TAB_STATUS[activeTab])
+  const pendingCount = withChild.filter(r => r.status === 'PENDING').length
 
-  // Tap card → lazy fetch session
   async function handleSelect(reward: RewardWithChild) {
-    setSelected(reward)
+    setSelectedReward(reward)
     const sid = reward.sessionId
-    if (!sid || sid in sessionCache) return
+    if (!sid || sid in sessionCache || !child) return
     setLoadingSession(true)
     try {
-      const child  = children.find(c => c.name === reward.childName)
-      if (!child) return
       const snap = await getDoc(doc(db, 'users', user!.uid, 'children', child.id, 'sessions', sid))
       setSessionCache(prev => ({ ...prev, [sid]: snap.exists() ? snap.data() as QuizSession : null }))
     } catch {
@@ -295,50 +275,41 @@ export default function RewardPage() {
     }
   }
 
-  // Approve / reject
   async function handleAction(status: 'APPROVED' | 'REJECTED', note: string) {
-    if (!selected || !user) return
+    if (!selectedReward || !user || !child) return
     setActionLoading(true)
     try {
-      const child = children.find(c => c.name === selected.childName)
-      if (!child) return
-      await updateDoc(
-        doc(db, 'users', user.uid, 'children', child.id, 'rewards', selected.id),
-        { status, parentNote: note }
-      )
-      setSelected(null)
+      await updateDoc(doc(db, 'users', user.uid, 'children', child.id, 'rewards', selectedReward.id), { status, parentNote: note })
+      setSelectedReward(null)
     } finally {
       setActionLoading(false)
     }
   }
 
+  const isLoading = childLoading || loadingRewards
+
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5">
       <div>
         <h1 className="font-extrabold text-[22px]">Reward</h1>
-        <p className="text-[13px] text-[#737373] mt-0.5">Permintaan hadiah dari anak</p>
+        <p className="text-[13px] text-[#9CA3AF] mt-0.5">
+          {child ? `Permintaan hadiah dari ${child.name}` : 'Permintaan hadiah dari anak'}
+        </p>
       </div>
 
       <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">
         {TABS.map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
-              activeTab === tab ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'
-            }`}
-          >
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-colors ${activeTab === tab ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
             {tab}
             {tab === 'Menunggu' && pendingCount > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-[#EF4444] text-white text-[10px] font-bold">
-                {pendingCount}
-              </span>
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-[#EF4444] text-white text-[10px] font-bold">{pendingCount}</span>
             )}
           </button>
         ))}
       </div>
 
-      {loadingInit ? <Skeleton /> : filtered.length === 0 ? (
+      {isLoading ? <Skeleton /> : filtered.length === 0 ? (
         <EmptyState tab={activeTab} />
       ) : (
         <div className="space-y-3">
@@ -346,12 +317,12 @@ export default function RewardPage() {
         </div>
       )}
 
-      {selected && (
+      {selectedReward && (
         <DetailModal
-          reward={selected}
-          session={sessionCache[selected.sessionId]}
+          reward={selectedReward}
+          session={sessionCache[selectedReward.sessionId]}
           loadingSession={loadingSession}
-          onClose={() => setSelected(null)}
+          onClose={() => setSelectedReward(null)}
           onAction={handleAction}
           actionLoading={actionLoading}
         />
