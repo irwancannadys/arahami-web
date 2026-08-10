@@ -1,7 +1,7 @@
 # Arahami Web — Development Progress
 
 > Created: Agustus 2026
-> Last updated: Agustus 2026 (session 12)
+> Last updated: Agustus 2026 (session 13)
 > Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Firebase · Groq AI · Tesseract.js · Sharp
 
 ---
@@ -49,9 +49,9 @@
 | Layout dashboard (sidebar + main) | ✅ | Nunito font, warna biru #0095F6 |
 | Tab Beranda — child selector + overview | ✅ | Multi-child selector, XP/level/streak |
 | Redirect ke /onboarding kalau belum ada anak | ✅ | |
-| **Tab Laporan** — hasil kuis + progress | 🔶 | UI + dummy + recharts selesai, switch ke Firestore next |
-| **Tab Reward** — approve/tolak hadiah | 🔶 | UI + dummy data selesai, switch ke Firestore next |
-| **Tab Pesan** — Kabar + Chat | 🔶 | UI + dummy selesai, switch ke Firestore next |
+| **Tab Laporan** — hasil kuis + progress | ✅ | Real Firestore — sessions + topics + recharts charts |
+| **Tab Reward** — approve/tolak hadiah | ✅ | Real Firestore — onSnapshot rewards + lazy session fetch + updateDoc |
+| **Tab Pesan** — Kabar + Chat | ✅ | Real Firestore — onSnapshot threads/chats + addDoc kirim pesan |
 | **Tab Pesan** — kirim pesan ke anak | ❌ | |
 | Tab Pengaturan | ❌ | |
 
@@ -72,12 +72,11 @@
 ## Reward Flow
 | Item | Status |
 |---|---|
-| List reward request masuk | 🔶 | UI + dummy data, Firestore switch next |
-| Approve reward + optional note ke anak | 🔶 | UI selesai, Firestore switch next |
-| Tolak reward + alasan | 🔶 | UI selesai, Firestore switch next |
-| Riwayat reward (tab Disetujui/Ditolak) | 🔶 | UI selesai |
-| Detail kuis yang menghasilkan reward | 🔶 | Tampil mapel, topik, skor di modal |
-| Switch ke real Firestore data | ❌ | TODO: ganti useState(DUMMY) → onSnapshot(rewardsCol) + sessionsCol lazy fetch |
+| List reward request masuk | ✅ | Real Firestore onSnapshot |
+| Approve reward + optional note ke anak | ✅ | updateDoc status + parentNote |
+| Tolak reward + alasan | ✅ | updateDoc status + parentNote |
+| Riwayat reward (tab Disetujui/Ditolak) | ✅ | |
+| Detail kuis yang menghasilkan reward | ✅ | Lazy fetch session saat modal buka |
 
 ---
 
