@@ -123,7 +123,7 @@
 | 8 | Tab Pesan — Kabar + Chat real Firestore | ✅ |
 | 9 | Tab Pengaturan — full (menu → child picker → tabbed edit) | ✅ |
 | 10 | Multi-child UX — ChildSwitcher + sidebar list + Beranda grid | ✅ |
-| **11** | **Parenting Tips Feed di Beranda** | ❌ |
+| **11** | **Parenting Tips Feed di Beranda** | 🔶 UI + dummy data done, AI generate next |
 | **12** | **Deploy OCR service ke Railway** | ❌ |
 | **13** | **FCM — push notif ke ortu** | ❌ |
 | **14** | **Mobile integration — Android hit web API routes** | ❌ |
@@ -164,13 +164,23 @@
 
 ## 🔮 Planned Features
 
-### 💡 Parenting Tips Feed (Next Priority)
-**Konsep:** Feed di Beranda — tips parenting harian di-generate AI, disesuaikan kelas anak, bisa share ke WA/IG dan kirim ke anak via Pesan.
-- Generate 5 tips/hari via Groq llama-3.3-70b
-- Cache di Firestore: `/tips/{date}/{grade}/`
-- Tombol Share (WA, IG Story, salin) + Kirim ke Anak (→ Tab Pesan Kabar)
-- API route baru: `POST /api/ai/generate-tips`
-- **Status:** ❌ Todo — next setelah ini
+### 💡 Parenting Tips Feed
+**Konsep:** Feed Twitter-style di Beranda — tips parenting harian, badge kategori (Parenting/Belajar/Motivasi) + badge kelas, simpan favorit, share, kirim ke anak.
+
+**Done ✅:**
+- UI Twitter-style (avatar emoji, divider list, action bar)
+- Badge kategori berwarna + badge kelas
+- Tombol Simpan (bookmark toggle, local state)
+- Tombol Bagikan → copy ke clipboard
+- Tombol Kirim ke Anak (hanya Motivasi) → addDoc ke Firestore threads, real-time
+- Modal picker anak jika multi-child
+- 5 dummy tips hardcoded sementara
+
+**Todo ❌:**
+- API route `POST /api/ai/generate-tips` → Groq llama-3.3-70b
+- Cache di Firestore: `/tips/{date}/` (global, semua parent pakai tips yang sama per hari)
+- Ganti dummy tips dengan data dari Firestore/AI
+- Persist saved tips ke Firestore per user
 
 ### Tema Favorit — Theme-aware UI
 - Warna aksen di Laporan/Reward/Pesan berubah sesuai tema anak yang dipilih

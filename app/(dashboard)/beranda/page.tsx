@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { query, where, onSnapshot, getDocs, orderBy, limit } from 'firebase/firestore'
+import { query, where, onSnapshot, getDocs, orderBy, limit, addDoc, serverTimestamp } from 'firebase/firestore'
 import { useAuthContext } from '@/components/layout/AuthProvider'
 import { useChild } from '@/lib/context/ChildContext'
-import { rewardsCol, sessionsCol, topicsCol } from '@/lib/firebase/firestore-paths'
+import { rewardsCol, sessionsCol, topicsCol, threadsCol } from '@/lib/firebase/firestore-paths'
 import { DashboardHeader } from '@/components/layout/DashboardHeader'
 import { themeEmoji, themeGradient } from '@/lib/theme'
 import { subjectDisplayName } from '@/lib/types'
@@ -185,14 +185,150 @@ function ChildCard({ child, stats }: { child: Child; stats: ChildStats }) {
   )
 }
 
+// ─── Tips Feed (dummy) ────────────────────────────────────────────────────────
+
+type TipCategory = 'Parenting' | 'Belajar' | 'Motivasi'
+type TipGrade    = 'Semua Kelas' | 'Kelas 1–3' | 'Kelas 4–6'
+
+interface Tip {
+  id:       number
+  category: TipCategory
+  grade:    TipGrade
+  emoji:    string
+  text:     string
+}
+
+const DUMMY_TIPS: Tip[] = [
+  {
+    id: 1, category: 'Parenting', grade: 'Semua Kelas', emoji: '🫂',
+    text: 'Luangkan 10 menit setiap malam untuk mendengarkan cerita anak tentang harinya — tanpa gadget, tanpa penilaian. Ini membangun rasa aman dan kepercayaan jangka panjang.',
+  },
+  {
+    id: 2, category: 'Belajar', grade: 'Kelas 1–3', emoji: '🎨',
+    text: 'Anak usia 6–9 tahun belajar lebih baik lewat visual. Gambar atau diagram sederhana bisa membantu mereka memahami konsep matematika jauh lebih cepat daripada teks.',
+  },
+  {
+    id: 3, category: 'Motivasi', grade: 'Semua Kelas', emoji: '🌱',
+    text: 'Puji proses, bukan hasil. "Kamu sudah berusaha keras hari ini!" jauh lebih memotivasi daripada "Kamu pintar!" — karena melatih anak untuk menghargai usaha.',
+  },
+  {
+    id: 4, category: 'Belajar', grade: 'Kelas 4–6', emoji: '📅',
+    text: 'Anak kelas 4–6 sudah bisa belajar lebih mandiri. Bantu mereka membuat jadwal belajar sendiri — cukup 30 menit fokus tiap sesi, lalu istirahat 10 menit.',
+  },
+  {
+    id: 5, category: 'Parenting', grade: 'Semua Kelas', emoji: '📵',
+    text: 'Batasi screen time non-edukatif maksimal 1–2 jam per hari. Anak yang punya waktu layar terbatas cenderung lebih kreatif dan tidur lebih berkualitas.',
+  },
+]
+
+const CATEGORY_CONFIG: Record<TipCategory, { bg: string; text: string; dot: string }> = {
+  Parenting: { bg: 'bg-[#EDE9FE]', text: 'text-[#6D28D9]', dot: 'bg-[#7C3AED]' },
+  Belajar:   { bg: 'bg-[#DBEAFE]', text: 'text-[#1D4ED8]', dot: 'bg-[#2563EB]' },
+  Motivasi:  { bg: 'bg-[#DCFCE7]', text: 'text-[#15803D]', dot: 'bg-[#16A34A]' },
+}
+
+const GRADE_STYLE: Record<TipGrade, { bg: string; text: string }> = {
+  'Semua Kelas': { bg: 'bg-[#F3F4F6]', text: 'text-[#6B7280]' },
+  'Kelas 1–3':   { bg: 'bg-[#FEF3C7]', text: 'text-[#92400E]' },
+  'Kelas 4–6':   { bg: 'bg-[#EFF6FF]', text: 'text-[#1D4ED8]' },
+}
+
+function TipCard({ tip, saved, onSave, onSendToChild }: {
+  tip:           Tip
+  saved:         boolean
+  onSave:        () => void
+  onSendToChild: (text: string) => void
+}) {
+  const [copied, setCopied] = useState(false)
+  const cat   = CATEGORY_CONFIG[tip.category]
+  const grade = GRADE_STYLE[tip.grade]
+
+  function share() {
+    navigator.clipboard.writeText(`${tip.emoji} ${tip.text}\n\n— Tips dari Arahami`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="bg-white border-b border-[#F3F4F6] last:border-0 py-4 px-1">
+      {/* Header row — avatar + meta */}
+      <div className="flex items-start gap-3">
+        {/* Avatar — emoji in colored circle */}
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[20px] shrink-0 ${cat.bg}`}>
+          {tip.emoji}
+        </div>
+
+        {/* Content column */}
+        <div className="flex-1 min-w-0 space-y-2">
+          {/* Meta row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-[13px] font-bold ${cat.text}`}>{tip.category}</span>
+            <span className={`w-1 h-1 rounded-full ${cat.dot}`} />
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${grade.bg} ${grade.text}`}>
+              {tip.grade}
+            </span>
+          </div>
+
+          {/* Tip text */}
+          <p className="text-[14px] text-[#0A0A0A] leading-relaxed">{tip.text}</p>
+
+          {/* Action bar — Twitter style */}
+          <div className="flex items-center gap-5 pt-1">
+            {/* Save/Bookmark */}
+            <button
+              onClick={onSave}
+              className={`flex items-center gap-1.5 text-[12px] font-medium transition-colors group ${
+                saved ? 'text-[#0095F6]' : 'text-[#9CA3AF] hover:text-[#0095F6]'
+              }`}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
+              <span>{saved ? 'Tersimpan' : 'Simpan'}</span>
+            </button>
+
+            {/* Kirim ke Anak — hanya untuk Motivasi */}
+            {tip.category === 'Motivasi' && (
+              <button
+                onClick={() => onSendToChild(tip.text)}
+                className="flex items-center gap-1.5 text-[12px] font-medium text-[#9CA3AF] hover:text-[#0095F6] transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+                <span>Kirim ke Anak</span>
+              </button>
+            )}
+
+            {/* Share */}
+            <button
+              onClick={share}
+              className="flex items-center gap-1.5 text-[12px] font-medium text-[#9CA3AF] hover:text-[#374151] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              <span>{copied ? 'Disalin!' : 'Bagikan'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function BerandaPage() {
   const router                                = useRouter()
   const { user }                              = useAuthContext()
   const { children, loading }                 = useChild()
-  const [stats,    setStats]                  = useState<Record<string, ChildStats>>({})
-  const [statsLoading, setStatsLoading]       = useState(true)
+  const [stats,        setStats]        = useState<Record<string, ChildStats>>({})
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [sendModal,    setSendModal]    = useState<string | null>(null)
+  const [savedTips,    setSavedTips]    = useState<Set<number>>(new Set())
 
   useEffect(() => {
     if (!loading && children.length === 0) router.push('/onboarding')
@@ -282,7 +418,75 @@ export default function BerandaPage() {
           </div>
         )}
 
+        {/* Tips Feed */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[13px] font-bold text-[#374151] uppercase tracking-wide">
+              Tips Parenting Hari Ini
+            </p>
+            <span className="text-[11px] text-[#9CA3AF]">Diperbarui setiap hari</span>
+          </div>
+
+          <div className="bg-white border border-[#E8EAF0] rounded-2xl px-4 shadow-sm divide-y divide-[#F3F4F6]">
+          {DUMMY_TIPS.map(tip => (
+            <TipCard
+              key={tip.id}
+              tip={tip}
+              saved={savedTips.has(tip.id)}
+              onSave={() => setSavedTips(prev => {
+                const next = new Set(prev)
+                next.has(tip.id) ? next.delete(tip.id) : next.add(tip.id)
+                return next
+              })}
+              onSendToChild={text => setSendModal(text)}
+            />
+          ))}
+          </div>
+        </div>
+
       </div>
+
+      {/* Send to child modal */}
+      {sendModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-[17px]">Kirim ke Anak</h3>
+              <button onClick={() => setSendModal(null)} className="text-[#737373] text-[22px] leading-none">×</button>
+            </div>
+
+            {children.length > 1 && (
+              <p className="text-[13px] text-[#737373]">Pilih anak yang akan menerima tips ini:</p>
+            )}
+
+            <div className="space-y-2">
+              {children.map(child => (
+                <button
+                  key={child.id}
+                  onClick={async () => {
+                    if (!user) return
+                    await addDoc(threadsCol(user.uid, child.id), {
+                      text: `💡 Tips untuk kamu:\n\n${sendModal}`,
+                      sender: 'parent',
+                      replies: [],
+                      createdAt: serverTimestamp(),
+                    })
+                    setSendModal(null)
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-[#E8EAF0] hover:bg-[#EFF6FF] hover:border-[#BFDBFE] transition-colors text-left"
+                >
+                  <span className="text-[20px]">{themeEmoji(child.theme)}</span>
+                  <div>
+                    <p className="font-semibold text-[14px]">{child.name}</p>
+                    <p className="text-[12px] text-[#9CA3AF]">Kelas {child.kelas}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
     </>
   )
 }
