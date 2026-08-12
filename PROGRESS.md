@@ -53,19 +53,19 @@
 | **Tab Reward** — approve/tolak hadiah | ✅ | Real Firestore — onSnapshot rewards + lazy session fetch + updateDoc |
 | **Tab Pesan** — Kabar + Chat | ✅ | Real Firestore — onSnapshot threads/chats + addDoc kirim pesan |
 | **Tab Pesan** — kirim pesan ke anak | ❌ | |
-| Tab Pengaturan | ❌ | |
+| Tab Pengaturan | ✅ | In-page panel — 6 sub-fitur lengkap |
 
 ---
 
 ## Settings
 | Screen | Status | Notes |
 |---|---|---|
-| Edit Profil Anak | ❌ | |
-| Edit Jadwal Mapel (custom per hari) | ❌ | |
-| Manage Topik | ❌ | |
-| Kode Anak — generate + share | ❌ | |
-| Tambah Anak | ❌ | Onboarding baru |
-| Setting Reward | ❌ | |
+| Edit Profil Anak | ✅ | updateDoc + auto-regenerate topik jika kelas berubah |
+| Edit Jadwal Mapel (custom per hari) | ✅ | setDoc/deleteDoc per hari + confirmation jika mapel dihapus |
+| Kelola Topik | ✅ | getDocs + addDoc/deleteDoc + generate AI per mapel |
+| Kode Anak — lihat + salin | ✅ | Display childCode + copy |
+| Tambah Anak | ✅ | Redirect ke /onboarding (pindah dari sidebar ke Pengaturan) |
+| Setting Reward | ✅ | 20 preset toggle, simpan enabledRewards[] ke child doc |
 
 ---
 
@@ -188,9 +188,9 @@
 
 ---
 
-## 🔮 Future / Notes
+## 🔮 Planned Features (Belum Dikerjain — Bukan Defer Lagi)
 
-### 💡 Parenting Tips Feed di Beranda (Ide — Belum Diimplementasi)
+### 💡 Parenting Tips Feed di Beranda
 
 **Konsep:** Di bawah hero card anak, tambahkan feed bergaya social media yang berisi tips parenting, nasihat untuk anak, dan info perkembangan anak — di-generate oleh Groq AI setiap hari.
 
@@ -208,7 +208,7 @@
 - Cache di Firestore supaya tidak re-generate kalau sudah ada untuk hari itu
 - Frontend: horizontal scroll card atau vertical feed di Beranda
 
-**Status:** ❌ Defer sampai semua fitur utama selesai
+**Status:** ❌ Todo — setelah Pengaturan selesai
 
 ### Tema Favorit (Child Theme)
 - Saat ini: tersimpan di Firestore (`child.theme`) tapi hanya digunakan sebagai identifier
@@ -219,6 +219,7 @@
 - **Tema laki-laki:** ⚽ Sepak Bola · 🤖 Robot · 🎒 Petualang · 🦕 Dinosaurus
 - **Tema perempuan:** 👑 Princess · 🐱 Kucing · 🧁 Bakery · 🧜‍♀️ Putri Duyung
 - Tema dikunci setelah onboarding (tidak bisa diubah) — sesuai behavior mobile
+- **Status:** ❌ Todo — setelah Parenting Tips Feed
 
 ### Multi-child
 - Child selector di Beranda sudah ada (tabs)

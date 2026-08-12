@@ -11,6 +11,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts'
+import { ChildSwitcher } from '@/components/layout/ChildSwitcher'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -204,13 +205,16 @@ export default function LaporanPage() {
             {selected ? `Progress ${selected.name}` : 'Progress belajar anak'}
           </p>
         </div>
-        <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">
-          {PERIODS.map(p => (
-            <button key={p} onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${period === p ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
-              {p}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <ChildSwitcher />
+          <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">
+            {PERIODS.map(p => (
+              <button key={p} onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${period === p ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
+                {p}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

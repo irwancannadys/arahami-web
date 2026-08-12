@@ -8,6 +8,7 @@ import { useChild } from '@/lib/context/ChildContext'
 import { rewardsCol } from '@/lib/firebase/firestore-paths'
 import type { Reward, QuizSession } from '@/lib/types'
 import { subjectDisplayName } from '@/lib/types'
+import { ChildSwitcher } from '@/components/layout/ChildSwitcher'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -290,11 +291,14 @@ export default function RewardPage() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5">
-      <div>
-        <h1 className="font-extrabold text-[22px]">Reward</h1>
-        <p className="text-[13px] text-[#9CA3AF] mt-0.5">
-          {child ? `Permintaan hadiah dari ${child.name}` : 'Permintaan hadiah dari anak'}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-extrabold text-[22px]">Reward</h1>
+          <p className="text-[13px] text-[#9CA3AF] mt-0.5">
+            {child ? `Permintaan hadiah dari ${child.name}` : 'Permintaan hadiah dari anak'}
+          </p>
+        </div>
+        <ChildSwitcher />
       </div>
 
       <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">

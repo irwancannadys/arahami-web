@@ -8,6 +8,7 @@ import { useAuthContext } from '@/components/layout/AuthProvider'
 import { useChild } from '@/lib/context/ChildContext'
 import { threadsCol, chatsCol } from '@/lib/firebase/firestore-paths'
 import type { ThreadMessage, ChatMessage } from '@/lib/types'
+import { ChildSwitcher } from '@/components/layout/ChildSwitcher'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -287,11 +288,14 @@ export default function PesanPage() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5">
-      <div>
-        <h1 className="font-extrabold text-[22px]">Pesan</h1>
-        <p className="text-[13px] text-[#9CA3AF] mt-0.5">
-          {child ? `Komunikasi dengan ${child.name}` : 'Komunikasi dengan anak'}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-extrabold text-[22px]">Pesan</h1>
+          <p className="text-[13px] text-[#9CA3AF] mt-0.5">
+            {child ? `Komunikasi dengan ${child.name}` : 'Komunikasi dengan anak'}
+          </p>
+        </div>
+        <ChildSwitcher />
       </div>
 
       <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">

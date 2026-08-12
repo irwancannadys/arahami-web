@@ -12,8 +12,9 @@ export interface Child {
   xp:             number
   level:          number
   streak:         number
-  lastActiveDate: string
-  createdAt?:     Date
+  lastActiveDate:  string
+  enabledRewards?: string[]
+  createdAt?:      Date
 }
 
 export interface Schedule {
