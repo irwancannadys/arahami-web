@@ -1,7 +1,7 @@
 # Arahami Web — Development Progress
 
 > Created: Agustus 2026
-> Last updated: Agustus 2026 (session 19)
+> Last updated: Agustus 2026 (session 20)
 > Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Firebase · Groq AI
 
 ---
@@ -57,6 +57,7 @@
 | Tab Beranda — Parenting Tips Feed | ✅ | AI Groq + Firestore daily cache (`tips/{YYYY-MM-DD}`), skeleton loading, error state + retry |
 | Login page redesign | ✅ | Split layout: left brand panel (gradient + logo besar) + right form |
 | Sidebar logo + parent identity | ✅ | Text logo + parent name + "Parent's Mode" card |
+| Belajar Weekend per anak | ✅ | Toggle di Tab Jadwal, jadwal Sabtu/Minggu terpisah, validasi (≥2 weekday, ≥1 weekend), dialog konfirmasi OFF, warning topik kosong di Tab Topik |
 | Redirect ke /onboarding kalau belum ada anak | ✅ | |
 | Tab Laporan — hasil kuis + chart + filter | ✅ | Real Firestore, Recharts, period filter + ChildSwitcher |
 | Tab Laporan — detail per sesi (modal) | 🔶 | Modal klik session card → skor, benar/salah per soal. Teks soal + jawaban anak pending (butuh update data model Android — lihat Known Issues) |
@@ -137,8 +138,9 @@
 | 15 | FCM Kuis — anak selesai kuis → parent dapat notif (Firestore listener) | ✅ |
 | 16 | FCM Pesan — parent kirim kabar/chat/reply → child notif | ✅ |
 | 17 | UI Polish — login redesign (split layout, logo besar), sidebar logo + parent card | ✅ |
-| **18** | **Deploy OCR service ke Railway** | ❌ |
-| **19** | **Mobile integration — Android hit web API routes** | ❌ |
+| 18 | Belajar Weekend — toggle per anak, jadwal Sabtu/Minggu, validasi, warning topik kosong | ✅ |
+| **19** | **Deploy OCR service ke Railway** | ❌ |
+| **20** | **Mobile integration — Android hit web API routes** | ❌ |
 | **17** | **Deploy OCR service ke Railway** | ❌ |
 | **18** | **Mobile integration — Android hit web API routes** | ❌ |
 

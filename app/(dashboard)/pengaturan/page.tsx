@@ -55,13 +55,13 @@ const ALL_REWARD_KEYS = REWARD_PRESETS.map(r => r.key)
 
 // ─── Shared UI helpers ────────────────────────────────────────────────────────
 
-function SaveButton({ onClick, loading, label = 'Simpan Perubahan' }: {
-  onClick: () => void; loading: boolean; label?: string
+function SaveButton({ onClick, loading, label = 'Simpan Perubahan', disabled: extraDisabled = false }: {
+  onClick: () => void; loading: boolean; label?: string; disabled?: boolean
 }) {
   return (
     <button
       onClick={onClick}
-      disabled={loading}
+      disabled={loading || extraDisabled}
       className="w-full py-3 rounded-xl bg-[#0095F6] text-white text-[14px] font-bold disabled:opacity-40 hover:bg-[#0074CC] transition-colors"
     >
       {loading ? 'Menyimpan...' : label}
@@ -240,10 +240,11 @@ function TabProfil({ child, uid, onSaved }: { child: Child; uid: string; onSaved
 
 // ─── Tab: Edit Jadwal ─────────────────────────────────────────────────────────
 
-function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved: (msg: string) => void }) {
+function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved: (msg: string, switchToTab?: EditTab) => void }) {
   const ALL_DAYS = [...DAYS, ...WEEKEND_DAYS]
 
   const [schedules,        setSchedules]        = useState<Record<string, string[]>>({})
+  const [savedSchedules,   setSavedSchedules]   = useState<Record<string, string[]>>({})
   const [originalSubjects, setOriginalSubjects] = useState<string[]>([])
   const [customByDay,      setCustomByDay]      = useState<Record<string, string[]>>({})
   const [activeDay,        setActiveDay]        = useState(DAYS[0])
@@ -252,8 +253,10 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
   const [loading,          setLoading]          = useState(true)
   const [saving,           setSaving]           = useState(false)
   const [error,            setError]            = useState('')
-  const [removeWarning,    setRemoveWarning]    = useState<string[] | null>(null)
-  const [weekendEnabled,   setWeekendEnabled]   = useState(child.enableWeekend ?? false)
+  const [removeWarning,       setRemoveWarning]       = useState<string[] | null>(null)
+  const [weekendEnabled,      setWeekendEnabled]      = useState(child.enableWeekend ?? false)
+  const [showWeekendOffDialog,setShowWeekendOffDialog] = useState(false)
+  const [weekendOffLoading,   setWeekendOffLoading]   = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -262,6 +265,7 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
       snap.docs.forEach(d => { const s = d.data() as Schedule; loaded[s.day] = s.subjects })
       const full = Object.fromEntries(ALL_DAYS.map(d => [d, loaded[d] ?? []]))
       setSchedules(full)
+      setSavedSchedules(full)
       setOriginalSubjects([...new Set(Object.values(full).flat())])
       const customSubs = child.customSubjects ?? []
       const byDay: Record<string, string[]> = {}
@@ -315,7 +319,27 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
       const allCustom = [...new Set(Object.values(customByDay).flat())]
       batch.update(childDoc(uid, child.id), { customSubjects: allCustom, enableWeekend: weekendEnabled })
       await batch.commit()
+      setSavedSchedules({ ...schedules })
       setRemoveWarning(null)
+
+      // Cek apakah ada mapel weekend baru yang belum punya topik
+      if (weekendEnabled) {
+        const weekendSubjects = [...new Set([
+          ...(schedules['SATURDAY'] ?? []),
+          ...(schedules['SUNDAY']   ?? []),
+        ])]
+        if (weekendSubjects.length > 0) {
+          const topicsSnap2       = await getDocs(topicsCol(uid, child.id))
+          const hasTopics         = new Set(topicsSnap2.docs.map(d => d.data().subject as string))
+          const withoutTopics     = weekendSubjects.filter(s => !hasTopics.has(s))
+          if (withoutTopics.length > 0) {
+            const names = withoutTopics.map(s => SUBJECT_LABELS[s] ?? s).join(', ')
+            onSaved(`Jadwal disimpan! Tambahkan topik untuk: ${names}`, 'topik')
+            return
+          }
+        }
+      }
+
       onSaved('Jadwal berhasil disimpan')
     } catch (e: any) {
       setError(e.message ?? 'Gagal menyimpan')
@@ -324,14 +348,61 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
     }
   }
 
+  // Matikan weekend: hapus jadwal Sabtu/Minggu + topik weekend-only (tidak ada di weekday)
+  async function confirmDisableWeekend() {
+    setWeekendOffLoading(true)
+    try {
+      const weekdaySet    = new Set(DAYS.flatMap(d => schedules[d] ?? []))
+      const weekendSubs   = [...new Set([...(schedules['SATURDAY'] ?? []), ...(schedules['SUNDAY'] ?? [])])]
+      const weekendOnly   = weekendSubs.filter(s => !weekdaySet.has(s))
+
+      const batch = writeBatch(db)
+      batch.delete(doc(schedulesCol(uid, child.id), 'SATURDAY'))
+      batch.delete(doc(schedulesCol(uid, child.id), 'SUNDAY'))
+
+      // Hapus topik untuk mapel yang HANYA ada di weekend (tidak ada di weekday)
+      if (weekendOnly.length > 0) {
+        const topicsSnap = await getDocs(topicsCol(uid, child.id))
+        topicsSnap.docs
+          .filter(d => weekendOnly.includes(d.data().subject as string))
+          .forEach(d => batch.delete(d.ref))
+      }
+
+      batch.update(childDoc(uid, child.id), { enableWeekend: false })
+      await batch.commit()
+
+      // Update local state
+      setWeekendEnabled(false)
+      setSchedules(prev => ({ ...prev, SATURDAY: [], SUNDAY: [] }))
+      setSavedSchedules(prev => ({ ...prev, SATURDAY: [], SUNDAY: [] }))
+      setCustomByDay(prev => ({ ...prev, SATURDAY: [], SUNDAY: [] }))
+      if (WEEKEND_DAYS.includes(activeDay)) setActiveDay(DAYS[0])
+      setShowWeekendOffDialog(false)
+      onSaved('Belajar Weekend dimatikan')
+    } catch (e: any) {
+      setError(e.message ?? 'Gagal mematikan weekend')
+    } finally {
+      setWeekendOffLoading(false)
+    }
+  }
+
   if (loading) return <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-[#F3F4F6] rounded-xl animate-pulse" />)}</div>
 
-  const isWeekendDay = WEEKEND_DAYS.includes(activeDay)
-  const daySubjects  = schedules[activeDay] ?? []
-  const customSubs   = customByDay[activeDay] ?? []
-  const allSubjects  = [...SUBJECTS, ...customSubs]
-  // Weekday: minimal 2 mapel | Weekend: tidak ada minimum
-  const canSave = DAYS.every(d => (schedules[d] ?? []).length >= 2)
+  const isWeekendDay   = WEEKEND_DAYS.includes(activeDay)
+  const daySubjects    = schedules[activeDay] ?? []
+  const customSubs     = customByDay[activeDay] ?? []
+  const allSubjects    = [...SUBJECTS, ...customSubs]
+
+  const weekdaysValid  = DAYS.every(d => (schedules[d] ?? []).length >= 2)
+  // Weekend valid kalau disabled, ATAU minimal 1 hari weekend ada mapelnya
+  // Minggu/Sabtu kosong = hari itu tidak belajar (boleh)
+  const weekendValid   = !weekendEnabled || WEEKEND_DAYS.some(d => (schedules[d] ?? []).length >= 1)
+  const hasChanges     = ALL_DAYS.some(d => {
+    const curr = [...(schedules[d] ?? [])].sort().join(',')
+    const orig = [...(savedSchedules[d] ?? [])].sort().join(',')
+    return curr !== orig
+  })
+  const canSave = hasChanges && weekdaysValid && weekendValid
 
   return (
     <div className="space-y-4">
@@ -344,14 +415,23 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
           <p className="text-[11px] text-[#9CA3AF] mt-0.5">Aktifkan jadwal Sabtu & Minggu</p>
         </div>
         <button
-          onClick={() => {
-            const next = !weekendEnabled
-            setWeekendEnabled(next)
-            if (!next && WEEKEND_DAYS.includes(activeDay)) setActiveDay(DAYS[0])
+          onClick={async () => {
+            if (weekendEnabled) {
+              // Turning OFF — tampilkan dialog konfirmasi
+              setShowWeekendOffDialog(true)
+            } else {
+              // Turning ON — langsung simpan ke Firestore
+              setWeekendEnabled(true)
+              try {
+                await updateDoc(childDoc(uid, child.id), { enableWeekend: true })
+              } catch {
+                setWeekendEnabled(false)
+              }
+            }
           }}
-          className={`relative w-11 h-6 rounded-full transition-colors ${weekendEnabled ? 'bg-[#0095F6]' : 'bg-[#D1D5DB]'}`}
+          className={`relative w-11 h-6 rounded-full overflow-hidden transition-colors ${weekendEnabled ? 'bg-[#0095F6]' : 'bg-[#D1D5DB]'}`}
         >
-          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${weekendEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${weekendEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
         </button>
       </div>
 
@@ -390,7 +470,7 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
             )
           })}
           <div className="flex-1 flex items-center justify-center text-[11px] text-[#9CA3AF]">
-            Opsional, tidak wajib diisi
+            Min 1 mapel per hari
           </div>
         </div>
       )}
@@ -429,9 +509,12 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
       {!isWeekendDay && daySubjects.length > 0 && daySubjects.length < 2 && (
         <p className="text-[12px] text-red-500">{DAY_LABELS[activeDay]}: pilih minimal 2 mapel ({daySubjects.length}/2)</p>
       )}
+      {weekendEnabled && !weekendValid && (
+        <p className="text-[12px] text-red-500">Pilih minimal 1 mapel di Sabtu atau Minggu</p>
+      )}
 
       {error && <p className="text-[13px] text-red-500">{error}</p>}
-      <SaveButton onClick={handleSave} loading={saving} />
+      <SaveButton onClick={handleSave} loading={saving} disabled={!canSave} />
 
       {/* Remove warning dialog */}
       {removeWarning && (
@@ -460,6 +543,50 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
           </div>
         </div>
       )}
+
+      {/* Dialog konfirmasi matikan weekend */}
+      {showWeekendOffDialog && (() => {
+        const weekdaySet  = new Set(DAYS.flatMap(d => schedules[d] ?? []))
+        const weekendSubs = [...new Set([...(schedules['SATURDAY'] ?? []), ...(schedules['SUNDAY'] ?? [])])]
+        const weekendOnly = weekendSubs.filter(s => !weekdaySet.has(s))
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+              <div className="text-center">
+                <p className="text-3xl mb-2">🌙</p>
+                <h3 className="font-extrabold text-[17px]">Matikan Belajar Weekend?</h3>
+                <p className="text-[13px] text-[#737373] mt-1.5 leading-relaxed">
+                  Jadwal Sabtu & Minggu akan dihapus.
+                </p>
+                {weekendOnly.length > 0 && (
+                  <div className="mt-3 text-left bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">
+                    <p className="text-[12px] font-semibold text-[#B91C1C] mb-1.5">
+                      Topik untuk mapel berikut juga dihapus (tidak ada di hari lain):
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {weekendOnly.map(s => (
+                        <span key={s} className="px-2 py-0.5 bg-[#FEE2E2] text-[#B91C1C] text-[11px] font-semibold rounded-lg">
+                          {SUBJECT_LABELS[s] ?? s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowWeekendOffDialog(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-[#DBDBDB] text-[13px] font-semibold hover:bg-[#F5F5F5] transition-colors">
+                  Batal
+                </button>
+                <button onClick={confirmDisableWeekend} disabled={weekendOffLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-[#EF4444] text-white text-[13px] font-bold disabled:opacity-40 hover:bg-[#DC2626] transition-colors">
+                  {weekendOffLoading ? 'Memproses...' : 'Matikan Weekend'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -470,6 +597,7 @@ type TopicView = 'list' | 'add-ai' | 'add-manual'
 
 function TabTopik({ child, uid, onSaved }: { child: Child; uid: string; onSaved: (msg: string) => void }) {
   const [topics,        setTopics]        = useState<Topic[]>([])
+  const [allSubjects,   setAllSubjects]   = useState<string[]>([])
   const [loading,       setLoading]       = useState(true)
   const [activeSubject, setActiveSubject] = useState('')
   const [topicView,     setTopicView]     = useState<TopicView>('list')
@@ -485,14 +613,25 @@ function TabTopik({ child, uid, onSaved }: { child: Child; uid: string; onSaved:
 
   async function loadTopics() {
     setLoading(true)
-    const snap = await getDocs(topicsCol(uid, child.id))
-    const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Topic))
+    const [topicsSnap, schedulesSnap] = await Promise.all([
+      getDocs(topicsCol(uid, child.id)),
+      getDocs(schedulesCol(uid, child.id)),
+    ])
+    const list = topicsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Topic))
     setTopics(list)
-    if (!activeSubject && list.length > 0) setActiveSubject(list[0].subject)
+
+    // Gabungkan subjects dari topik + dari semua jadwal (weekday + weekend)
+    const topicSubjects    = list.map(t => t.subject)
+    const scheduleSubjects = schedulesSnap.docs.flatMap(d => (d.data() as Schedule).subjects)
+    const combined         = [...new Set([...topicSubjects, ...scheduleSubjects])]
+    setAllSubjects(combined)
+
+    const first = activeSubject || combined[0] || ''
+    if (first) setActiveSubject(first)
     setLoading(false)
   }
 
-  const subjects     = [...new Set(topics.map(t => t.subject))]
+  const subjects     = allSubjects
   const activeTopics = topics.filter(t => t.subject === activeSubject)
 
   async function deleteTopic(topicId: string) {
@@ -619,33 +758,83 @@ function TabTopik({ child, uid, onSaved }: { child: Child; uid: string; onSaved:
         </div>
       ) : (
         <>
+          {/* Banner warning — tampil dari awal, list semua mapel tanpa topik */}
+          {(() => {
+            const emptySubjects = subjects.filter(s => topics.filter(t => t.subject === s).length === 0)
+            if (emptySubjects.length === 0) return null
+            return (
+              <div className="bg-[#FFFBEB] border border-[#FCD34D] rounded-2xl p-4 space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <span className="text-lg shrink-0">⚠️</span>
+                  <div>
+                    <p className="text-[13px] font-bold text-[#92400E]">
+                      {emptySubjects.length} mapel belum punya topik
+                    </p>
+                    <p className="text-[12px] text-[#B45309] mt-0.5 leading-relaxed">
+                      Anak tidak bisa mulai kuis untuk mapel-mapel ini. Tap untuk langsung tambah topik.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {emptySubjects.map(s => (
+                    <button key={s} onClick={() => setActiveSubject(s)}
+                      className="px-2.5 py-1 bg-[#FEF3C7] border border-[#FCD34D] rounded-lg text-[12px] font-semibold text-[#92400E] hover:bg-[#FDE68A] transition-colors">
+                      {SUBJECT_LABELS[s] ?? s} →
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Subject tabs */}
           <div className="flex gap-1.5 flex-wrap">
             {subjects.map(subject => {
-              const count = topics.filter(t => t.subject === subject).length
+              const count  = topics.filter(t => t.subject === subject).length
+              const empty  = count === 0
+              const active = activeSubject === subject
               return (
                 <button key={subject} onClick={() => setActiveSubject(subject)}
                   className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-colors ${
-                    activeSubject === subject ? 'bg-[#0095F6] border-[#0095F6] text-white' : 'border-[#DBDBDB] hover:bg-[#F5F5F5]'
+                    active && !empty ? 'bg-[#0095F6] border-[#0095F6] text-white'
+                    : active &&  empty ? 'bg-[#F59E0B] border-[#F59E0B] text-white'
+                    : !active && empty ? 'border-[#FCD34D] text-[#B45309] bg-[#FFFBEB] hover:bg-[#FEF3C7]'
+                    : 'border-[#DBDBDB] hover:bg-[#F5F5F5]'
                   }`}>
-                  {SUBJECT_LABELS[subject] ?? subject} <span className="opacity-70">({count})</span>
+                  {SUBJECT_LABELS[subject] ?? subject}
+                  {' '}<span className="opacity-80">({count})</span>
                 </button>
               )
             })}
           </div>
-          <div className="space-y-2">
-            {activeTopics.map(topic => (
-              <div key={topic.id} className="flex items-center gap-3 px-4 py-3 bg-white border border-[#DBDBDB] rounded-xl">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[14px] font-medium truncate">{topic.topicName}</p>
-                  <p className="text-[11px] text-[#A8A8A8] mt-0.5">{topic.source} · {topic.isDone ? '✅ Selesai' : 'Belum'}</p>
+
+          {/* Topic list / empty state per subject */}
+          {activeTopics.length === 0 ? (
+            <div className="text-center py-6 text-[#9CA3AF]">
+              <p className="text-2xl mb-1.5">📋</p>
+              <p className="text-[13px] font-semibold">Belum ada topik untuk mapel ini</p>
+              <p className="text-[12px] mt-0.5">Gunakan tombol di bawah untuk menambahkan</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activeTopics.map(topic => (
+                <div key={topic.id} className="flex items-center gap-3 px-4 py-3 bg-white border border-[#DBDBDB] rounded-xl">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-medium truncate">{topic.topicName}</p>
+                    <p className="text-[11px] text-[#A8A8A8] mt-0.5">
+                      {topic.source === 'AI' ? 'Dari AI' : topic.source === 'MANUAL' ? 'Tulis manual' : 'Dari foto'}
+                      {' · '}
+                      {topic.isDone ? '✅ Sudah dikerjakan' : '⏳ Belum dikerjakan anak'}
+                    </p>
+                  </div>
+                  <button onClick={() => deleteTopic(topic.id)} disabled={deleting === topic.id}
+                    className="px-3 py-1 rounded-lg border border-[#FCA5A5] text-[#EF4444] text-[12px] font-semibold hover:bg-[#FEF2F2] disabled:opacity-40 shrink-0 transition-colors">
+                    {deleting === topic.id ? '...' : 'Hapus'}
+                  </button>
                 </div>
-                <button onClick={() => deleteTopic(topic.id)} disabled={deleting === topic.id}
-                  className="px-3 py-1 rounded-lg border border-[#FCA5A5] text-[#EF4444] text-[12px] font-semibold hover:bg-[#FEF2F2] disabled:opacity-40 shrink-0 transition-colors">
-                  {deleting === topic.id ? '...' : 'Hapus'}
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </>
       )}
       <div className="flex gap-2 pt-2">
@@ -742,9 +931,10 @@ function EditChildView({
   const [activeTab,   setActiveTab]   = useState<EditTab>('profil')
   const [successMsg,  setSuccessMsg]  = useState('')
 
-  function handleSaved(msg: string) {
+  function handleSaved(msg: string, switchToTab?: EditTab) {
     setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(''), 3000)
+    setTimeout(() => setSuccessMsg(''), 4000)
+    if (switchToTab) setActiveTab(switchToTab)
   }
 
   return (
@@ -784,7 +974,10 @@ function EditChildView({
       {/* Tab content */}
       <div>
         {activeTab === 'profil'  && <TabProfil  child={child} uid={uid} onSaved={handleSaved} />}
-        {activeTab === 'jadwal'  && <TabJadwal  child={child} uid={uid} onSaved={handleSaved} />}
+        {/* TabJadwal selalu mounted — state jadwal & weekend tidak hilang saat pindah tab */}
+        <div style={{ display: activeTab === 'jadwal' ? 'block' : 'none' }}>
+          <TabJadwal child={child} uid={uid} onSaved={handleSaved} />
+        </div>
         {activeTab === 'topik'   && <TabTopik   child={child} uid={uid} onSaved={handleSaved} />}
         {activeTab === 'kode'    && <TabKode    child={child} />}
         {activeTab === 'reward'  && <TabReward  child={child} uid={uid} onSaved={handleSaved} />}
@@ -804,6 +997,11 @@ export default function PengaturanPage() {
   const [view,         setView]         = useState<PengaturanView>('menu')
   const [editingChild, setEditingChild] = useState<Child | null>(null)
 
+  // Sync editingChild dengan data live dari Firestore (handle update enableWeekend dll)
+  const liveEditingChild = editingChild
+    ? (children.find(c => c.id === editingChild.id) ?? editingChild)
+    : null
+
   if (!user) return (
     <>
       <DashboardHeader title="Pengaturan" />
@@ -822,9 +1020,9 @@ export default function PengaturanPage() {
       <div className="p-6 max-w-2xl mx-auto">
 
         {/* View: Edit anak — tabbed */}
-        {view === 'edit' && editingChild && (
+        {view === 'edit' && liveEditingChild && (
           <EditChildView
-            child={editingChild}
+            child={liveEditingChild}
             uid={user.uid}
             onBack={() => { setView('child-list'); setEditingChild(null) }}
           />
