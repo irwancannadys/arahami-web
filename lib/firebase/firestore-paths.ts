@@ -13,3 +13,4 @@ export const rewardsCol     = (uid: string, childId: string)   => collection(db,
 export const threadsCol     = (uid: string, childId: string)   => collection(db, 'users', uid, 'children', childId, 'messages')
 export const chatsCol       = (uid: string, childId: string)   => collection(db, 'users', uid, 'children', childId, 'chats')
 export const childCodeDoc   = (code: string)                   => doc(db, 'childCodes', code)
+export const tipsDoc        = (date: string)                   => doc(db, 'tips', date)

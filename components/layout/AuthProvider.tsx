@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, User } from 'firebase/auth'
 import { auth } from '@/lib/firebase/config'
+import { registerFcmToken, onForegroundMessage } from '@/lib/firebase/messaging'
 
 interface AuthContextType {
   user:    User | null
@@ -19,14 +20,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u)
       setLoading(false)
-      // Set/clear cookie untuk middleware
       if (u) {
         document.cookie = 'arahami_auth=1; path=/; max-age=86400'
+        // Daftarkan FCM token setelah login
+        registerFcmToken(u.uid)
       } else {
         document.cookie = 'arahami_auth=; path=/; max-age=0'
       }
     })
     return unsubscribe
+  }, [])
+
+  // Handle foreground notifications (app sedang terbuka)
+  useEffect(() => {
+    const unsub = onForegroundMessage(payload => {
+      const { title, body } = payload.notification ?? {}
+      if (!title) return
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(title, { body: body ?? '', data: payload.data })
+      })
+    })
+    return unsub
   }, [])
 
   return (

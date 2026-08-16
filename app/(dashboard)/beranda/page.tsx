@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { query, where, onSnapshot, getDocs, orderBy, limit, addDoc, serverTimestamp } from 'firebase/firestore'
+import { query, where, onSnapshot, getDocs, orderBy, limit, addDoc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { useAuthContext } from '@/components/layout/AuthProvider'
 import { useChild } from '@/lib/context/ChildContext'
-import { rewardsCol, sessionsCol, topicsCol, threadsCol } from '@/lib/firebase/firestore-paths'
+import { rewardsCol, sessionsCol, topicsCol, threadsCol, tipsDoc } from '@/lib/firebase/firestore-paths'
 import { DashboardHeader } from '@/components/layout/DashboardHeader'
 import { themeEmoji, themeGradient } from '@/lib/theme'
 import { subjectDisplayName } from '@/lib/types'
@@ -185,7 +185,7 @@ function ChildCard({ child, stats }: { child: Child; stats: ChildStats }) {
   )
 }
 
-// ─── Tips Feed (dummy) ────────────────────────────────────────────────────────
+// ─── Tips Feed ────────────────────────────────────────────────────────────────
 
 type TipCategory = 'Parenting' | 'Belajar' | 'Motivasi'
 type TipGrade    = 'Semua Kelas' | 'Kelas 1–3' | 'Kelas 4–6'
@@ -197,29 +197,6 @@ interface Tip {
   emoji:    string
   text:     string
 }
-
-const DUMMY_TIPS: Tip[] = [
-  {
-    id: 1, category: 'Parenting', grade: 'Semua Kelas', emoji: '🫂',
-    text: 'Luangkan 10 menit setiap malam untuk mendengarkan cerita anak tentang harinya — tanpa gadget, tanpa penilaian. Ini membangun rasa aman dan kepercayaan jangka panjang.',
-  },
-  {
-    id: 2, category: 'Belajar', grade: 'Kelas 1–3', emoji: '🎨',
-    text: 'Anak usia 6–9 tahun belajar lebih baik lewat visual. Gambar atau diagram sederhana bisa membantu mereka memahami konsep matematika jauh lebih cepat daripada teks.',
-  },
-  {
-    id: 3, category: 'Motivasi', grade: 'Semua Kelas', emoji: '🌱',
-    text: 'Puji proses, bukan hasil. "Kamu sudah berusaha keras hari ini!" jauh lebih memotivasi daripada "Kamu pintar!" — karena melatih anak untuk menghargai usaha.',
-  },
-  {
-    id: 4, category: 'Belajar', grade: 'Kelas 4–6', emoji: '📅',
-    text: 'Anak kelas 4–6 sudah bisa belajar lebih mandiri. Bantu mereka membuat jadwal belajar sendiri — cukup 30 menit fokus tiap sesi, lalu istirahat 10 menit.',
-  },
-  {
-    id: 5, category: 'Parenting', grade: 'Semua Kelas', emoji: '📵',
-    text: 'Batasi screen time non-edukatif maksimal 1–2 jam per hari. Anak yang punya waktu layar terbatas cenderung lebih kreatif dan tidur lebih berkualitas.',
-  },
-]
 
 const CATEGORY_CONFIG: Record<TipCategory, { bg: string; text: string; dot: string }> = {
   Parenting: { bg: 'bg-[#EDE9FE]', text: 'text-[#6D28D9]', dot: 'bg-[#7C3AED]' },
@@ -329,6 +306,8 @@ export default function BerandaPage() {
   const [statsLoading, setStatsLoading] = useState(true)
   const [sendModal,    setSendModal]    = useState<string | null>(null)
   const [savedTips,    setSavedTips]    = useState<Set<number>>(new Set())
+  const [tips,         setTips]         = useState<Tip[] | null>(null)
+  const [tipsError,    setTipsError]    = useState(false)
 
   useEffect(() => {
     if (!loading && children.length === 0) router.push('/onboarding')
@@ -370,6 +349,37 @@ export default function BerandaPage() {
 
     return () => rewardUnsubs.forEach(u => u())
   }, [user, children])
+
+  // Fetch tips: cek Firestore cache dulu, generate via AI kalau belum ada
+  useEffect(() => {
+    if (!user) return
+    async function loadTips() {
+      setTipsError(false)
+      const today = new Date().toISOString().slice(0, 10)
+      try {
+        const cached = await getDoc(tipsDoc(today))
+        if (cached.exists()) {
+          const data = cached.data()
+          if (Array.isArray(data.items) && data.items.length > 0) {
+            setTips(data.items)
+            return
+          }
+        }
+        const res = await fetch('/api/ai/generate-tips', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-secret': 'arahami-secret-2026' },
+          body:    JSON.stringify({}),
+        })
+        if (!res.ok) throw new Error('API error')
+        const { tips: generated } = await res.json()
+        await setDoc(tipsDoc(today), { generatedAt: serverTimestamp(), items: generated })
+        setTips(generated)
+      } catch {
+        setTipsError(true)
+      }
+    }
+    loadTips()
+  }, [user])
 
   const isLoading    = loading || statsLoading
   const displayName  = user?.displayName?.split(' ')[0] ?? 'Ortu'
@@ -428,19 +438,50 @@ export default function BerandaPage() {
           </div>
 
           <div className="bg-white border border-[#E8EAF0] rounded-2xl px-4 shadow-sm divide-y divide-[#F3F4F6]">
-          {DUMMY_TIPS.map(tip => (
-            <TipCard
-              key={tip.id}
-              tip={tip}
-              saved={savedTips.has(tip.id)}
-              onSave={() => setSavedTips(prev => {
-                const next = new Set(prev)
-                next.has(tip.id) ? next.delete(tip.id) : next.add(tip.id)
-                return next
-              })}
-              onSendToChild={text => setSendModal(text)}
-            />
-          ))}
+            {tipsError ? (
+              <div className="py-8 flex flex-col items-center gap-3 text-center">
+                <p className="text-[13px] text-[#737373]">Gagal memuat tips. Coba lagi.</p>
+                <button
+                  onClick={() => { setTips(null); setTipsError(false); if (user) {
+                    const today = new Date().toISOString().slice(0, 10)
+                    getDoc(tipsDoc(today)).then(cached => {
+                      if (cached.exists() && Array.isArray(cached.data().items)) { setTips(cached.data().items); return }
+                      fetch('/api/ai/generate-tips', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-secret': 'arahami-secret-2026' }, body: JSON.stringify({}) })
+                        .then(r => r.json()).then(({ tips: g }) => { setDoc(tipsDoc(today), { generatedAt: serverTimestamp(), items: g }); setTips(g) })
+                        .catch(() => setTipsError(true))
+                    }).catch(() => setTipsError(true))
+                  }}}
+                  className="px-4 py-2 rounded-xl bg-[#0095F6] text-white text-[13px] font-semibold hover:bg-[#0074CC] transition-colors"
+                >
+                  Coba Lagi
+                </button>
+              </div>
+            ) : tips === null ? (
+              [1, 2, 3].map(i => (
+                <div key={i} className="py-4 flex items-start gap-3 animate-pulse">
+                  <div className="w-10 h-10 rounded-full bg-[#F3F4F6] shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-28 bg-[#F3F4F6] rounded-full" />
+                    <div className="h-3 w-full bg-[#F3F4F6] rounded-full" />
+                    <div className="h-3 w-4/5 bg-[#F3F4F6] rounded-full" />
+                  </div>
+                </div>
+              ))
+            ) : (
+              tips.map(tip => (
+                <TipCard
+                  key={tip.id}
+                  tip={tip}
+                  saved={savedTips.has(tip.id)}
+                  onSave={() => setSavedTips(prev => {
+                    const next = new Set(prev)
+                    next.has(tip.id) ? next.delete(tip.id) : next.add(tip.id)
+                    return next
+                  })}
+                  onSendToChild={text => setSendModal(text)}
+                />
+              ))
+            )}
           </div>
         </div>
 

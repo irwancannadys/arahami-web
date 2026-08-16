@@ -14,6 +14,7 @@ export interface Child {
   streak:         number
   lastActiveDate:  string
   enabledRewards?: string[]
+  fcmToken?:       string
   createdAt?:      Date
 }
 

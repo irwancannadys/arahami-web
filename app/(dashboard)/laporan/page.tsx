@@ -102,11 +102,14 @@ function XpTooltip({ active, payload, label }: any) {
   )
 }
 
-function SessionCard({ session }: { session: SessionWithChild }) {
+function SessionCard({ session, onClick }: { session: SessionWithChild; onClick: () => void }) {
   const color = SUBJECT_COLOR[session.subject] ?? '#0095F6'
   const xp    = xpFromScore(session.score, session.totalQ)
   return (
-    <div className="bg-white border border-[#DBDBDB] rounded-2xl p-4 flex items-center gap-4">
+    <button
+      onClick={onClick}
+      className="w-full bg-white border border-[#DBDBDB] rounded-2xl p-4 flex items-center gap-4 hover:border-[#0095F6] hover:shadow-sm transition-all text-left"
+    >
       <div
         className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white text-[12px] font-extrabold"
         style={{ background: color }}
@@ -125,6 +128,99 @@ function SessionCard({ session }: { session: SessionWithChild }) {
         <p className="text-[11px]">{stars(session.score)}</p>
         <p className="text-[11px] font-semibold text-[#FBBF24]">+{xp} XP</p>
       </div>
+      <svg className="w-4 h-4 text-[#D1D5DB] shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+      </svg>
+    </button>
+  )
+}
+
+// ─── Session Detail Modal ─────────────────────────────────────────────────────
+
+function isCorrect(answer: string): boolean {
+  return typeof answer === 'string' && answer.toUpperCase().includes('CORRECT')
+}
+
+function SessionDetailModal({ session, onClose }: { session: SessionWithChild; onClose: () => void }) {
+  const color = SUBJECT_COLOR[session.subject] ?? '#0095F6'
+  const xp    = xpFromScore(session.score, session.totalQ)
+  const date  = toDate(session.date)
+  const dateStr = date
+    ? date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '-'
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between p-5 border-b border-[#F3F4F6]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-[12px] font-extrabold shrink-0"
+              style={{ background: color }}>
+              {subjectDisplayName(session.subject).slice(0, 2)}
+            </div>
+            <div>
+              <p className="font-bold text-[15px] leading-snug">{session.topicName}</p>
+              <p className="text-[12px] text-[#737373]">{subjectDisplayName(session.subject)}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-[#9CA3AF] hover:text-[#374151] text-[22px] leading-none ml-2">×</button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Score row */}
+          <div className="flex items-center gap-4">
+            <div className="flex-1 bg-[#F9FAFB] rounded-2xl p-4 text-center">
+              <p className="text-3xl font-extrabold" style={{ color }}>{session.score}</p>
+              <p className="text-[11px] text-[#9CA3AF] mt-0.5">Skor</p>
+            </div>
+            <div className="flex-1 bg-[#F9FAFB] rounded-2xl p-4 text-center">
+              <p className="text-3xl font-extrabold text-[#22C55E]">{session.correctQ}</p>
+              <p className="text-[11px] text-[#9CA3AF] mt-0.5">dari {session.totalQ} soal</p>
+            </div>
+            <div className="flex-1 bg-[#F9FAFB] rounded-2xl p-4 text-center">
+              <p className="text-xl font-extrabold text-[#FBBF24]">+{xp}</p>
+              <p className="text-[11px] text-[#9CA3AF] mt-0.5">XP</p>
+            </div>
+          </div>
+
+          {/* Stars + date */}
+          <div className="flex items-center justify-between text-[13px]">
+            <span className="text-lg">{stars(session.score)}</span>
+            <span className="text-[#9CA3AF]">{dateStr}</span>
+          </div>
+
+          {/* Per-question breakdown */}
+          {session.answers?.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[13px] font-bold text-[#374151]">Rincian Jawaban</p>
+              <div className="space-y-2">
+                {session.answers.map((ans, i) => {
+                  const correct = isCorrect(ans)
+                  return (
+                    <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${
+                      correct ? 'bg-[#F0FDF4] border-[#BBF7D0]' : 'bg-[#FEF2F2] border-[#FECACA]'
+                    }`}>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 ${
+                        correct ? 'bg-[#22C55E] text-white' : 'bg-[#EF4444] text-white'
+                      }`}>
+                        {correct ? '✓' : '✗'}
+                      </div>
+                      <span className="text-[13px] font-semibold text-[#374151]">Soal {i + 1}</span>
+                      <span className={`ml-auto text-[12px] font-semibold ${correct ? 'text-[#15803D]' : 'text-[#DC2626]'}`}>
+                        {correct ? 'Benar' : 'Salah'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -139,6 +235,7 @@ export default function LaporanPage() {
   const [topics,      setTopics]      = useState<Topic[]>([])
   const [loadingData, setLoadingData] = useState(true)
   const [period,      setPeriod]      = useState<Period>('7 Hari')
+  const [detail,      setDetail]      = useState<SessionWithChild | null>(null)
 
   useEffect(() => {
     if (!user || !selected) return
@@ -271,11 +368,19 @@ export default function LaporanPage() {
                 <p className="text-[#9CA3AF] font-semibold">Belum ada data untuk periode ini</p>
               </div>
             ) : (
-              filtered.map(s => <SessionCard key={s.id} session={{ ...s, childName: selected?.name ?? '' }} />)
+              filtered.map(s => (
+                <SessionCard
+                  key={s.id}
+                  session={{ ...s, childName: selected?.name ?? '' }}
+                  onClick={() => setDetail({ ...s, childName: selected?.name ?? '' })}
+                />
+              ))
             )}
           </div>
         </>
       )}
+
+      {detail && <SessionDetailModal session={detail} onClose={() => setDetail(null)} />}
     </div>
   )
 }

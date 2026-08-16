@@ -9,6 +9,7 @@ import { rewardsCol } from '@/lib/firebase/firestore-paths'
 import type { Reward, QuizSession } from '@/lib/types'
 import { subjectDisplayName } from '@/lib/types'
 import { ChildSwitcher } from '@/components/layout/ChildSwitcher'
+import { sendNotification } from '@/lib/notifications'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -280,7 +281,30 @@ export default function RewardPage() {
     if (!selectedReward || !user || !child) return
     setActionLoading(true)
     try {
-      await updateDoc(doc(db, 'users', user.uid, 'children', child.id, 'rewards', selectedReward.id), { status, parentNote: note })
+      await updateDoc(
+        doc(db, 'users', user.uid, 'children', child.id, 'rewards', selectedReward.id),
+        { status, parentNote: note },
+      )
+
+      if (child.fcmToken) {
+        const { label } = splitEmoji(selectedReward.request)
+        if (status === 'APPROVED') {
+          await sendNotification(
+            child.fcmToken,
+            '🎉 Reward Disetujui!',
+            `Ayah/Bunda menyetujui: ${label}${note ? ` — "${note}"` : ''}`,
+            { type: 'reward_approved', rewardId: selectedReward.id },
+          )
+        } else {
+          await sendNotification(
+            child.fcmToken,
+            '😔 Reward Belum Bisa',
+            note || 'Coba lebih rajin belajar ya!',
+            { type: 'reward_rejected', rewardId: selectedReward.id },
+          )
+        }
+      }
+
       setSelectedReward(null)
     } finally {
       setActionLoading(false)

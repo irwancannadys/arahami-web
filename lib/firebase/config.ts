@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import { getAuth, initializeAuth, browserLocalPersistence, browserPopupRedirectResolver, GoogleAuthProvider } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -12,8 +12,19 @@ const firebaseConfig = {
   measurementId:     process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
-const app      = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
-const auth     = getAuth(app)
+// initializeAuth hanya sekali, getAuth untuk re-evaluasi berikutnya (HMR)
+// Pakai browserLocalPersistence (localStorage) bukan IndexedDB — bypass bug
+// "Database is closing/hidden" di Firebase SDK 10+ / 12+
+const isFirst = getApps().length === 0
+const app     = isFirst ? initializeApp(firebaseConfig) : getApp()
+
+// initializeAuth + browser persistence hanya di client — server pakai getAuth biasa
+const auth = isFirst && typeof window !== 'undefined'
+  ? initializeAuth(app, {
+      persistence:           browserLocalPersistence,
+      popupRedirectResolver: browserPopupRedirectResolver,
+    })
+  : getAuth(app)
 const db       = getFirestore(app)
 const provider = new GoogleAuthProvider()
 
