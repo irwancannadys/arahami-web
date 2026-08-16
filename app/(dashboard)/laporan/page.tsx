@@ -202,19 +202,19 @@ function SessionDetailModal({ session, onClose }: { session: SessionWithChild; o
                 {session.answerDetails?.length > 0
                   ? session.answerDetails.map((detail, i) => (
                     <div key={i} className={`p-3 rounded-xl border space-y-1.5 ${
-                      detail.isCorrect ? 'bg-[#F0FDF4] border-[#BBF7D0]' : 'bg-[#FEF2F2] border-[#FECACA]'
+                      detail.correct ? 'bg-[#F0FDF4] border-[#BBF7D0]' : 'bg-[#FEF2F2] border-[#FECACA]'
                     }`}>
                       <div className="flex items-start gap-2.5">
                         <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 mt-0.5 ${
-                          detail.isCorrect ? 'bg-[#22C55E] text-white' : 'bg-[#EF4444] text-white'
+                          detail.correct ? 'bg-[#22C55E] text-white' : 'bg-[#EF4444] text-white'
                         }`}>
-                          {detail.isCorrect ? '✓' : '✗'}
+                          {detail.correct ? '✓' : '✗'}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-semibold text-[#374151] leading-snug">
                             Soal {i + 1}: {detail.questionText}
                           </p>
-                          {!detail.isCorrect && (
+                          {!detail.correct && (
                             <div className="mt-1.5 space-y-0.5">
                               {detail.userAnswer && (
                                 <p className="text-[12px] text-[#DC2626]">

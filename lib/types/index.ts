@@ -38,7 +38,7 @@ export interface QuizAnswerDetail {
   questionText:  string
   userAnswer:    string   // jawaban anak (display text), kosong kalau benar
   correctAnswer: string   // jawaban benar (display text)
-  isCorrect:     boolean
+  correct:       boolean  // "correct" bukan "isCorrect" — Firebase strips "is" prefix dari boolean getter
 }
 
 export interface QuizSession {

@@ -133,7 +133,7 @@ LANGKAH 5: WAJIB verifikasi → options[correct] harus IDENTIK dengan jawaban be
     "question": "Pilih semua yang termasuk ...",
     "options": ["emoji1 label", "emoji2 label", "emoji3 label", "emoji4 label"],
     "correct": [0, 2],
-    "explanation": "Index 0 (label1) dan index 2 (label3) benar karena ..."
+    "explanation": "[nama opsi1] dan [nama opsi3] benar karena ... — JANGAN sebut angka index, gunakan nama opsinya"
   }
 ]
 
