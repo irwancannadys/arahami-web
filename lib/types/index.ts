@@ -33,16 +33,24 @@ export interface Topic {
   order:     number
 }
 
+export interface QuizAnswerDetail {
+  questionText:  string
+  userAnswer:    string   // jawaban anak (display text), kosong kalau benar
+  correctAnswer: string   // jawaban benar (display text)
+  isCorrect:     boolean
+}
+
 export interface QuizSession {
-  id:        string
-  subject:   string
-  topicId:   string
-  topicName: string
-  score:     number
-  totalQ:    number
-  correctQ:  number
-  answers:   string[]
-  date?:     Date
+  id:            string
+  subject:       string
+  topicId:       string
+  topicName:     string
+  score:         number
+  totalQ:        number
+  correctQ:      number
+  answers:       string[]            // "CORRECT"/"WRONG" per soal (basic display)
+  answerDetails: QuizAnswerDetail[]  // detail per soal (teks soal + jawaban)
+  date?:         Date
 }
 
 export interface Reward {

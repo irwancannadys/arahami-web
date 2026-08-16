@@ -194,11 +194,46 @@ function SessionDetailModal({ session, onClose }: { session: SessionWithChild; o
           </div>
 
           {/* Per-question breakdown */}
-          {session.answers?.length > 0 && (
+          {(session.answerDetails?.length > 0 || session.answers?.length > 0) && (
             <div className="space-y-2">
               <p className="text-[13px] font-bold text-[#374151]">Rincian Jawaban</p>
               <div className="space-y-2">
-                {session.answers.map((ans, i) => {
+                {/* Full detail — kalau data baru dari Android (ada answerDetails) */}
+                {session.answerDetails?.length > 0
+                  ? session.answerDetails.map((detail, i) => (
+                    <div key={i} className={`p-3 rounded-xl border space-y-1.5 ${
+                      detail.isCorrect ? 'bg-[#F0FDF4] border-[#BBF7D0]' : 'bg-[#FEF2F2] border-[#FECACA]'
+                    }`}>
+                      <div className="flex items-start gap-2.5">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 mt-0.5 ${
+                          detail.isCorrect ? 'bg-[#22C55E] text-white' : 'bg-[#EF4444] text-white'
+                        }`}>
+                          {detail.isCorrect ? '✓' : '✗'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold text-[#374151] leading-snug">
+                            Soal {i + 1}: {detail.questionText}
+                          </p>
+                          {!detail.isCorrect && (
+                            <div className="mt-1.5 space-y-0.5">
+                              {detail.userAnswer && (
+                                <p className="text-[12px] text-[#DC2626]">
+                                  Jawaban kamu: <span className="font-semibold">{detail.userAnswer}</span>
+                                </p>
+                              )}
+                              {detail.correctAnswer && (
+                                <p className="text-[12px] text-[#15803D]">
+                                  Jawaban benar: <span className="font-semibold">{detail.correctAnswer}</span>
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                  /* Basic display — fallback untuk data lama (hanya ada answers) */
+                  : session.answers.map((ans, i) => {
                   const correct = isCorrect(ans)
                   return (
                     <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${
