@@ -50,7 +50,7 @@ export default function LoginPage() {
           alt="Arahami"
           width={320}
           height={88}
-          className="brightness-0 invert -ml-2"
+          className="brightness-0 invert -ml-4"
         />
 
         <div className="space-y-4">
