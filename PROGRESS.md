@@ -1,7 +1,7 @@
 # Arahami Web — Development Progress
 
 > Created: Agustus 2026
-> Last updated: Agustus 2026 (session 20)
+> Last updated: Agustus 2026 (session 21)
 > Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Firebase · Groq AI
 
 ---
@@ -139,8 +139,9 @@
 | 16 | FCM Pesan — parent kirim kabar/chat/reply → child notif | ✅ |
 | 17 | UI Polish — login redesign (split layout, logo besar), sidebar logo + parent card | ✅ |
 | 18 | Belajar Weekend — toggle per anak, jadwal Sabtu/Minggu, validasi, warning topik kosong | ✅ |
-| **19** | **Deploy OCR service ke Railway** | ❌ |
-| **20** | **Mobile integration — Android hit web API routes** | ❌ |
+| 19 | Generate quiz prompt improvement — chain-of-thought, grade hints, temperature 0.3 | ✅ |
+| **20** | **Deploy OCR service ke Railway** | ❌ |
+| **21** | **Mobile integration — Android hit web API routes** | ❌ |
 | **17** | **Deploy OCR service ke Railway** | ❌ |
 | **18** | **Mobile integration — Android hit web API routes** | ❌ |
 

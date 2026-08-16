@@ -14,10 +14,11 @@ const openrouter = new OpenAI({
   },
 })
 
-export async function generateText(prompt: string): Promise<string> {
+export async function generateText(prompt: string, temperature = 1.0): Promise<string> {
   const res = await groq.chat.completions.create({
-    model:    'llama-3.3-70b-versatile',
-    messages: [{ role: 'user', content: prompt }],
+    model:       'llama-3.3-70b-versatile',
+    messages:    [{ role: 'user', content: prompt }],
+    temperature,
   })
   return res.choices[0]?.message?.content ?? ''
 }
