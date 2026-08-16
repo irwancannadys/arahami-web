@@ -82,8 +82,10 @@ export const SUBJECT_LABELS: Record<string, string> = {
   PJOK:      'PJOK',
 }
 
-export const DAYS = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY']
+export const DAYS         = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY']
+export const WEEKEND_DAYS = ['SATURDAY','SUNDAY']
 export const DAY_LABELS: Record<string, string> = {
   MONDAY: 'Senin', TUESDAY: 'Selasa', WEDNESDAY: 'Rabu',
   THURSDAY: 'Kamis', FRIDAY: 'Jumat',
+  SATURDAY: 'Sabtu', SUNDAY: 'Minggu',
 }

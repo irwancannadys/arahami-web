@@ -9,7 +9,7 @@ import { db } from '@/lib/firebase/config'
 import { useAuthContext } from '@/components/layout/AuthProvider'
 import { useChild } from '@/lib/context/ChildContext'
 import { childDoc, schedulesCol, topicsCol } from '@/lib/firebase/firestore-paths'
-import { DAYS, DAY_LABELS, SUBJECTS, SUBJECT_LABELS } from '@/lib/curriculum'
+import { DAYS, WEEKEND_DAYS, DAY_LABELS, SUBJECTS, SUBJECT_LABELS } from '@/lib/curriculum'
 import type { Child, Schedule, Topic } from '@/lib/types'
 import { DashboardHeader } from '@/components/layout/DashboardHeader'
 import { themeEmoji } from '@/lib/theme'
@@ -241,6 +241,8 @@ function TabProfil({ child, uid, onSaved }: { child: Child; uid: string; onSaved
 // ─── Tab: Edit Jadwal ─────────────────────────────────────────────────────────
 
 function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved: (msg: string) => void }) {
+  const ALL_DAYS = [...DAYS, ...WEEKEND_DAYS]
+
   const [schedules,        setSchedules]        = useState<Record<string, string[]>>({})
   const [originalSubjects, setOriginalSubjects] = useState<string[]>([])
   const [customByDay,      setCustomByDay]      = useState<Record<string, string[]>>({})
@@ -251,18 +253,19 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
   const [saving,           setSaving]           = useState(false)
   const [error,            setError]            = useState('')
   const [removeWarning,    setRemoveWarning]    = useState<string[] | null>(null)
+  const [weekendEnabled,   setWeekendEnabled]   = useState(child.enableWeekend ?? false)
 
   useEffect(() => {
     async function load() {
       const snap   = await getDocs(schedulesCol(uid, child.id))
       const loaded: Record<string, string[]> = {}
       snap.docs.forEach(d => { const s = d.data() as Schedule; loaded[s.day] = s.subjects })
-      const full = Object.fromEntries(DAYS.map(d => [d, loaded[d] ?? []]))
+      const full = Object.fromEntries(ALL_DAYS.map(d => [d, loaded[d] ?? []]))
       setSchedules(full)
       setOriginalSubjects([...new Set(Object.values(full).flat())])
       const customSubs = child.customSubjects ?? []
       const byDay: Record<string, string[]> = {}
-      DAYS.forEach(day => { byDay[day] = (loaded[day] ?? []).filter(s => customSubs.includes(s)) })
+      ALL_DAYS.forEach(day => { byDay[day] = (loaded[day] ?? []).filter(s => customSubs.includes(s)) })
       setCustomByDay(byDay)
       setLoading(false)
     }
@@ -285,7 +288,7 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
   }
 
   async function handleSave() {
-    const newAll  = [...new Set(Object.values(schedules).flat())]
+    const newAll  = [...new Set(ALL_DAYS.flatMap(d => schedules[d] ?? []))]
     const removed = originalSubjects.filter(s => !newAll.includes(s))
     if (removed.length > 0) {
       const topicsSnap = await getDocs(topicsCol(uid, child.id))
@@ -299,7 +302,8 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
     setSaving(true); setError('')
     try {
       const batch = writeBatch(db)
-      DAYS.forEach(day => {
+      // Simpan semua hari (weekday + weekend)
+      ALL_DAYS.forEach(day => {
         const subjects = schedules[day] ?? []
         const ref = doc(schedulesCol(uid, child.id), day)
         subjects.length > 0 ? batch.set(ref, { id: day, day, subjects }) : batch.delete(ref)
@@ -309,7 +313,7 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
         topicsSnap.docs.filter(d => subjectsToRemove.includes(d.data().subject)).forEach(d => batch.delete(d.ref))
       }
       const allCustom = [...new Set(Object.values(customByDay).flat())]
-      batch.update(childDoc(uid, child.id), { customSubjects: allCustom })
+      batch.update(childDoc(uid, child.id), { customSubjects: allCustom, enableWeekend: weekendEnabled })
       await batch.commit()
       setRemoveWarning(null)
       onSaved('Jadwal berhasil disimpan')
@@ -322,16 +326,36 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
 
   if (loading) return <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-10 bg-[#F3F4F6] rounded-xl animate-pulse" />)}</div>
 
-  const daySubjects = schedules[activeDay] ?? []
-  const customSubs  = customByDay[activeDay] ?? []
-  const allSubjects = [...SUBJECTS, ...customSubs]
-  const canSave     = DAYS.every(d => (schedules[d] ?? []).length >= 2)
+  const isWeekendDay = WEEKEND_DAYS.includes(activeDay)
+  const daySubjects  = schedules[activeDay] ?? []
+  const customSubs   = customByDay[activeDay] ?? []
+  const allSubjects  = [...SUBJECTS, ...customSubs]
+  // Weekday: minimal 2 mapel | Weekend: tidak ada minimum
+  const canSave = DAYS.every(d => (schedules[d] ?? []).length >= 2)
 
   return (
     <div className="space-y-4">
-      <p className="text-[13px] text-[#737373]">Minimal 2 mapel per hari</p>
+      <p className="text-[13px] text-[#737373]">Minimal 2 mapel per hari (Senin–Jumat)</p>
 
-      {/* Day tabs */}
+      {/* Toggle Belajar Weekend */}
+      <div className="flex items-center justify-between px-4 py-3 bg-[#F9FAFB] rounded-xl border border-[#E8EAF0]">
+        <div>
+          <p className="text-[13px] font-semibold text-[#0A0A0A]">Belajar Weekend 🌟</p>
+          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Aktifkan jadwal Sabtu & Minggu</p>
+        </div>
+        <button
+          onClick={() => {
+            const next = !weekendEnabled
+            setWeekendEnabled(next)
+            if (!next && WEEKEND_DAYS.includes(activeDay)) setActiveDay(DAYS[0])
+          }}
+          className={`relative w-11 h-6 rounded-full transition-colors ${weekendEnabled ? 'bg-[#0095F6]' : 'bg-[#D1D5DB]'}`}
+        >
+          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${weekendEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+        </button>
+      </div>
+
+      {/* Weekday tabs */}
       <div className="flex gap-1.5">
         {DAYS.map(day => {
           const count  = schedules[day]?.length ?? 0
@@ -349,13 +373,37 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
         })}
       </div>
 
+      {/* Weekend tabs — muncul kalau weekendEnabled */}
+      {weekendEnabled && (
+        <div className="flex gap-1.5">
+          {WEEKEND_DAYS.map(day => {
+            const count = schedules[day]?.length ?? 0
+            return (
+              <button key={day} onClick={() => { setActiveDay(day); setShowInput(false); setCustomInput('') }}
+                className={`flex-1 py-2 rounded-xl text-[12px] font-semibold border transition-colors ${
+                  activeDay === day ? 'bg-[#7C3AED] border-[#7C3AED] text-white'
+                    : count > 0 ? 'border-[#7C3AED] text-[#7C3AED] bg-[#F5F3FF]'
+                    : 'border-dashed border-[#C4B5FD] text-[#8B5CF6] hover:bg-[#F5F3FF]'
+                }`}>
+                {DAY_LABELS[day]}{count > 0 && <span className="ml-1 opacity-80">({count})</span>}
+              </button>
+            )
+          })}
+          <div className="flex-1 flex items-center justify-center text-[11px] text-[#9CA3AF]">
+            Opsional, tidak wajib diisi
+          </div>
+        </div>
+      )}
+
       {/* Subject chips */}
       <div className="flex flex-wrap gap-2">
         {allSubjects.map(subject => (
           <button key={subject} onClick={() => toggle(subject)}
             className={`px-3 py-1.5 rounded-lg border text-[13px] font-semibold transition-colors ${
               daySubjects.includes(subject)
-                ? 'bg-[#E0F2FE] border-[#0095F6] text-[#0095F6]'
+                ? isWeekendDay
+                  ? 'bg-[#F5F3FF] border-[#7C3AED] text-[#7C3AED]'
+                  : 'bg-[#E0F2FE] border-[#0095F6] text-[#0095F6]'
                 : 'border-[#DBDBDB] hover:bg-[#F5F5F5]'
             }`}>
             {SUBJECT_LABELS[subject] ?? subject}
@@ -378,7 +426,7 @@ function TabJadwal({ child, uid, onSaved }: { child: Child; uid: string; onSaved
         )}
       </div>
 
-      {daySubjects.length > 0 && daySubjects.length < 2 && (
+      {!isWeekendDay && daySubjects.length > 0 && daySubjects.length < 2 && (
         <p className="text-[12px] text-red-500">{DAY_LABELS[activeDay]}: pilih minimal 2 mapel ({daySubjects.length}/2)</p>
       )}
 
