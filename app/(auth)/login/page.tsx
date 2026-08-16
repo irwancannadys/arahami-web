@@ -3,15 +3,16 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signInWithPopup, onAuthStateChanged } from 'firebase/auth'
+import Image from 'next/image'
 import { auth, provider } from '@/lib/firebase/config'
 import { useNoBackNavigation } from '@/lib/hooks/useNoBackNavigation'
 
 const IGNORED_ERRORS = ['auth/popup-closed-by-user', 'auth/cancelled-popup-request']
 
 export default function LoginPage() {
-  const router              = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState<string | null>(null)
+  const router                  = useRouter()
+  const [loading, setLoading]   = useState(false)
+  const [error,   setError]     = useState<string | null>(null)
 
   useNoBackNavigation()
 
@@ -38,41 +39,72 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA]">
-      <div className="bg-white border border-[#DBDBDB] rounded-2xl p-10 w-full max-w-sm flex flex-col items-center gap-6">
+    <div className="min-h-screen flex">
 
-        <div className="flex flex-col items-center gap-2">
-          <span className="text-5xl">🎒</span>
-          <h1 className="text-2xl font-bold tracking-tight">Arahami</h1>
-          <p className="text-sm text-[#737373] text-center">
-            Dashboard orang tua — pantau belajar anak kamu
+      {/* Left panel — brand */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-center gap-10 px-14 py-12"
+        style={{ background: 'linear-gradient(135deg, #0095F6 0%, #00C6A2 100%)' }}>
+
+        <Image
+          src="/logo-text.png"
+          alt="Arahami"
+          width={320}
+          height={88}
+          className="brightness-0 invert -ml-2"
+        />
+
+        <div className="space-y-4">
+          <h1 className="text-[36px] font-extrabold text-white leading-tight">
+            Pantau belajar<br />anak kamu,<br />di mana saja.
+          </h1>
+          <p className="text-white/75 text-[15px] leading-relaxed max-w-xs">
+            Dashboard orang tua untuk memantau progress belajar, menyetujui reward, dan berkomunikasi dengan anak.
           </p>
         </div>
 
-        <div className="w-full h-px bg-[#DBDBDB]" />
-
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-3 border border-[#DBDBDB] rounded-lg px-4 py-3 text-sm font-semibold hover:bg-[#FAFAFA] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? (
-            <span className="w-4 h-4 border-2 border-[#DBDBDB] border-t-[#0095F6] rounded-full animate-spin" />
-          ) : (
-            <GoogleIcon />
-          )}
-          {loading ? 'Menghubungkan...' : 'Masuk dengan Google'}
-        </button>
-
-        {error && (
-          <p className="text-sm text-red-500 text-center">{error}</p>
-        )}
-
-        <p className="text-xs text-[#737373] text-center">
-          Khusus untuk orang tua. Anak masuk lewat kode 4 digit di app.
-        </p>
-
+        <p className="text-white/50 text-[13px]">Belajar seru, ortu tenang.</p>
       </div>
+
+      {/* Right panel — login form */}
+      <div className="flex-1 flex flex-col items-center justify-center bg-[#F8FAFC] p-8">
+        <div className="w-full max-w-sm space-y-8">
+
+          {/* Logo + title */}
+          <div className="flex flex-col items-center gap-4">
+            <Image src="/logo-icon.png" alt="Arahami" width={96} height={96} className="rounded-3xl shadow-lg" />
+            <div className="text-center">
+              <h2 className="text-[24px] font-extrabold text-[#0A0A0A]">Masuk ke Arahami</h2>
+              <p className="text-[14px] text-[#737373] mt-1">Dashboard orang tua</p>
+            </div>
+          </div>
+
+          {/* Login card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-[#E8EAF0] p-6 space-y-4">
+            <button
+              onClick={handleLogin}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 bg-white border border-[#DBDBDB] rounded-xl px-4 py-3 text-[14px] font-semibold text-[#374151] hover:bg-[#F9FAFB] hover:border-[#0095F6] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            >
+              {loading ? (
+                <span className="w-4 h-4 border-2 border-[#DBDBDB] border-t-[#0095F6] rounded-full animate-spin" />
+              ) : (
+                <GoogleIcon />
+              )}
+              {loading ? 'Menghubungkan...' : 'Lanjutkan dengan Google'}
+            </button>
+
+            {error && (
+              <p className="text-[13px] text-red-500 text-center">{error}</p>
+            )}
+          </div>
+
+          <p className="text-[12px] text-[#A8A8A8] text-center">
+            Khusus untuk orang tua. Anak masuk lewat kode 4 digit di app Android.
+          </p>
+
+        </div>
+      </div>
+
     </div>
   )
 }

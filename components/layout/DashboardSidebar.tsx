@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { Home, BarChart2, MessageCircle, Gift } from 'lucide-react'
 import { useChild } from '@/lib/context/ChildContext'
+import { useAuthContext } from '@/components/layout/AuthProvider'
 import { themeEmoji } from '@/lib/theme'
 
 const NAV = [
@@ -16,26 +18,25 @@ const NAV = [
 export function DashboardSidebar() {
   const pathname                            = usePathname()
   const { children, selected, setSelected } = useChild()
+  const { user }                            = useAuthContext()
+
+  const parentName = user?.displayName ?? 'Orang Tua'
 
   return (
     <aside className="w-60 shrink-0 h-screen bg-white border-r border-[#E8EAF0] flex flex-col shadow-sm">
 
-      {/* Logo */}
-      <div className="px-5 py-5">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-[#0095F6] flex items-center justify-center">
-            <span className="text-white text-[16px]">🎒</span>
-          </div>
-          <div>
-            <p className="font-extrabold text-[15px] text-[#0A0A0A] leading-tight">Arahami</p>
-            <p className="text-[10px] text-[#A8A8A8] font-medium tracking-wide">MODE ORANG TUA</p>
-          </div>
+      {/* Logo + parent identity */}
+      <div className="px-5 pt-5 pb-4 border-b border-[#F3F4F6]">
+        <Image src="/logo-text.png" alt="Arahami" width={120} height={32} className="mb-4" />
+        <div className="bg-[#F8FAFC] border border-[#E8EAF0] rounded-xl px-3 py-2.5">
+          <p className="text-[13px] font-bold text-[#0A0A0A] leading-tight truncate">{parentName}</p>
+          <p className="text-[11px] text-[#9CA3AF] mt-0.5">Parent's Mode</p>
         </div>
       </div>
 
       {/* Children list */}
       {children.length > 0 && (
-        <div className="mx-3 mb-3">
+        <div className="mx-3 mt-4 mb-3">
           <p className="text-[10px] font-bold text-[#A8A8A8] uppercase tracking-widest px-1 mb-1.5">Anak</p>
           <div className="space-y-1">
             {children.map(child => {

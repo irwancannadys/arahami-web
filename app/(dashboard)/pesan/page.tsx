@@ -2,13 +2,15 @@
 
 import { useEffect, useState, useRef } from 'react'
 import {
-  onSnapshot, addDoc, query, orderBy, serverTimestamp,
+  onSnapshot, addDoc, updateDoc, doc, query, orderBy, serverTimestamp, arrayUnion,
 } from 'firebase/firestore'
+import { db } from '@/lib/firebase/config'
 import { useAuthContext } from '@/components/layout/AuthProvider'
 import { useChild } from '@/lib/context/ChildContext'
 import { threadsCol, chatsCol } from '@/lib/firebase/firestore-paths'
 import type { ThreadMessage, ChatMessage } from '@/lib/types'
 import { ChildSwitcher } from '@/components/layout/ChildSwitcher'
+import { sendNotification } from '@/lib/notifications'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,8 +39,117 @@ type Tab = 'kabar' | 'chat'
 
 function Skeleton() {
   return (
-    <div className="space-y-3">
-      {[1,2].map(i => <div key={i} className="h-24 bg-[#F3F4F6] rounded-2xl animate-pulse" />)}
+    <div className="space-y-3 p-1">
+      {[1, 2].map(i => <div key={i} className="h-28 bg-[#F3F4F6] rounded-2xl animate-pulse" />)}
+    </div>
+  )
+}
+
+// ─── Thread Card ─────────────────────────────────────────────────────────────
+
+function ThreadCard({ thread, childName, onReply }: {
+  thread:    ThreadMessage
+  childName: string
+  onReply:   (threadId: string, text: string) => Promise<void>
+}) {
+  const [replyOpen,  setReplyOpen]  = useState(false)
+  const [replyInput, setReplyInput] = useState('')
+  const [sending,    setSending]    = useState(false)
+  const inputRef                    = useRef<HTMLInputElement>(null)
+
+  function openReply() {
+    setReplyOpen(true)
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  async function submitReply() {
+    const t = replyInput.trim()
+    if (!t || !thread.id) return
+    setSending(true)
+    await onReply(thread.id, t)
+    setReplyInput('')
+    setReplyOpen(false)
+    setSending(false)
+  }
+
+  return (
+    <div className="bg-white border border-[#E8EAF0] rounded-2xl shadow-sm px-4 py-4 space-y-3">
+
+      {/* ── Parent post ── */}
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-full bg-[#0095F6] flex items-center justify-center text-white text-[12px] font-bold shrink-0">
+          K
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[13px] font-bold text-[#0A0A0A]">Kamu</span>
+            <span className="text-[11px] text-[#A8A8A8]">{timeLabel(thread.createdAt)}</span>
+          </div>
+          <p className="text-[14px] leading-relaxed text-[#0A0A0A] mt-0.5">{thread.text}</p>
+          <button onClick={openReply}
+            className="mt-1.5 text-[11px] font-semibold text-[#9CA3AF] hover:text-[#0095F6] transition-colors">
+            Balas
+          </button>
+        </div>
+      </div>
+
+      {/* ── Replies — indented ── */}
+      {thread.replies?.length > 0 && (
+        <div className="ml-11 space-y-3">
+          {thread.replies.map((r, j) => (
+            <div key={j} className="flex items-start gap-3">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                r.sender === 'child' ? 'bg-[#E0F2FE] text-[#0095F6]' : 'bg-[#DCFCE7] text-[#15803D]'
+              }`}>
+                {r.sender === 'child' ? childName[0].toUpperCase() : 'K'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-[12px] font-bold ${
+                    r.sender === 'child' ? 'text-[#0A0A0A]' : 'text-[#0A0A0A]'
+                  }`}>
+                    {r.sender === 'child' ? childName : 'Kamu'}
+                  </span>
+                  <span className="text-[11px] text-[#A8A8A8]">{timeLabel(r.createdAt)}</span>
+                </div>
+                <p className="text-[13px] leading-relaxed text-[#374151] mt-0.5">{r.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Reply input — muncul saat "Balas" diklik ── */}
+      {replyOpen && (
+        <div className="ml-11 flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-[#DCFCE7] flex items-center justify-center text-[11px] font-bold text-[#15803D] shrink-0">
+            K
+          </div>
+          <input
+            ref={inputRef}
+            type="text"
+            value={replyInput}
+            onChange={e => setReplyInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !sending) submitReply()
+              if (e.key === 'Escape') setReplyOpen(false)
+            }}
+            placeholder="Tulis balasan..."
+            className="flex-1 text-[13px] bg-[#F3F4F6] rounded-full px-4 py-2 outline-none focus:bg-white focus:ring-1 focus:ring-[#0095F6] transition-all"
+          />
+          <button onClick={() => { setReplyOpen(false); setReplyInput('') }}
+            className="text-[11px] text-[#9CA3AF] hover:text-[#374151] transition-colors shrink-0">
+            Batal
+          </button>
+          <button
+            onClick={submitReply}
+            disabled={!replyInput.trim() || sending}
+            className="text-[12px] font-bold text-[#0095F6] disabled:opacity-40 hover:text-[#0074CC] transition-colors shrink-0"
+          >
+            {sending ? '...' : 'Kirim'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -46,15 +157,16 @@ function Skeleton() {
 // ─── Kabar Tab ────────────────────────────────────────────────────────────────
 
 function KabarTab({
-  childName, threads, onPost,
+  childName, threads, onPost, onReply,
 }: {
   childName: string
   threads:   ThreadMessage[]
   onPost:    (text: string) => Promise<void>
+  onReply:   (threadId: string, text: string) => Promise<void>
 }) {
-  const [input,    setInput]    = useState('')
-  const [open,     setOpen]     = useState(false)
-  const [sending,  setSending]  = useState(false)
+  const [input,   setInput]   = useState('')
+  const [open,    setOpen]    = useState(false)
+  const [sending, setSending] = useState(false)
 
   async function submit() {
     const t = input.trim()
@@ -69,7 +181,7 @@ function KabarTab({
   const sorted = [...threads].sort((a, b) => toMs(b.createdAt) - toMs(a.createdAt))
 
   return (
-    <div className="space-y-4">
+    <div className="h-full overflow-y-auto space-y-4 pb-2">
       <button
         onClick={() => setOpen(true)}
         className="w-full flex items-center gap-3 px-4 py-3 bg-white border border-dashed border-[#0095F6] rounded-2xl text-[#0095F6] hover:bg-[#EFF6FF] transition-colors"
@@ -86,34 +198,7 @@ function KabarTab({
         </div>
       ) : (
         sorted.map((thread, i) => (
-          <div key={thread.id ?? i} className="bg-white border border-[#DBDBDB] rounded-2xl overflow-hidden">
-            <div className="p-4 space-y-1">
-              <p className="text-[14px] leading-relaxed">{thread.text}</p>
-              <p className="text-[11px] text-[#A8A8A8]">Kamu · {timeLabel(thread.createdAt)}</p>
-            </div>
-            {thread.replies?.length > 0 && (
-              <div className="border-t border-[#F3F4F6] bg-[#F9FAFB]">
-                {thread.replies.map((r, j) => (
-                  <div key={j} className="px-4 py-3 border-b border-[#F3F4F6] last:border-0">
-                    <div className="flex items-start gap-2.5">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 ${
-                        r.sender === 'child' ? 'bg-[#E0F2FE] text-[#0095F6]' : 'bg-[#DCFCE7] text-[#15803D]'
-                      }`}>
-                        {r.sender === 'child' ? childName[0] : 'K'}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-[12px] font-semibold text-[#737373]">
-                          {r.sender === 'child' ? childName : 'Kamu'}
-                        </p>
-                        <p className="text-[13px] mt-0.5 leading-relaxed">{r.text}</p>
-                        <p className="text-[11px] text-[#A8A8A8] mt-1">{timeLabel(r.createdAt)}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <ThreadCard key={thread.id ?? i} thread={thread} childName={childName} onReply={onReply} />
         ))
       )}
 
@@ -124,7 +209,6 @@ function KabarTab({
               <h3 className="font-extrabold text-[17px]">Tulis Kabar</h3>
               <button onClick={() => setOpen(false)} className="text-[#737373] text-[22px] leading-none">×</button>
             </div>
-            <p className="text-[13px] text-[#737373]">Pesan akan dikirim ke {childName} dan bisa dilihat di aplikasi.</p>
             <textarea
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -182,8 +266,9 @@ function ChatTab({ childName, chats, onSend }: {
   }
 
   return (
-    <div className="flex flex-col h-[480px]">
-      <div className="flex-1 overflow-y-auto space-y-3 pb-2">
+    <div className="flex flex-col h-full">
+      {/* Messages — fills remaining space */}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 py-2">
         {sorted.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-3xl">💬</p>
@@ -193,8 +278,14 @@ function ChatTab({ childName, chats, onSend }: {
         ) : sorted.map(msg => {
           const isParent = msg.sender === 'parent'
           return (
-            <div key={msg.id} className={`flex ${isParent ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[75%] flex flex-col ${isParent ? 'items-end' : 'items-start'} space-y-1`}>
+            <div key={msg.id} className={`flex items-end gap-2 ${isParent ? 'flex-row-reverse' : 'flex-row'}`}>
+              {/* Avatar */}
+              {!isParent && (
+                <div className="w-7 h-7 rounded-full bg-[#E0F2FE] flex items-center justify-center text-[11px] font-bold text-[#0095F6] shrink-0">
+                  {childName[0].toUpperCase()}
+                </div>
+              )}
+              <div className={`max-w-[72%] flex flex-col ${isParent ? 'items-end' : 'items-start'} space-y-1`}>
                 <div className={`px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed ${
                   isParent
                     ? 'bg-[#0095F6] text-white rounded-br-sm'
@@ -203,7 +294,8 @@ function ChatTab({ childName, chats, onSend }: {
                   {msg.text}
                 </div>
                 <p className="text-[10px] text-[#A8A8A8] px-1">
-                  {isParent ? 'Kamu' : childName} · {timeLabel(msg.createdAt)}
+                  {timeLabel(msg.createdAt)}
+                  {isParent && <span className="ml-1 text-[#0095F6]">✓</span>}
                 </p>
               </div>
             </div>
@@ -212,7 +304,8 @@ function ChatTab({ childName, chats, onSend }: {
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-[#F3F4F6] pt-3 flex gap-2">
+      {/* Input — pinned to bottom */}
+      <div className="shrink-0 border-t border-[#F3F4F6] pt-3 flex gap-2">
         <input
           type="text"
           value={input}
@@ -236,13 +329,14 @@ function ChatTab({ childName, chats, onSend }: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PesanPage() {
-  const { user }                                = useAuthContext()
-  const { selected: child, loading: childLoading } = useChild()
+  const { user }                                    = useAuthContext()
+  const { selected: child, loading: childLoading }  = useChild()
 
   const [threads,    setThreads]    = useState<ThreadMessage[]>([])
   const [chats,      setChats]      = useState<ChatMessage[]>([])
   const [activeTab,  setActiveTab]  = useState<Tab>('kabar')
   const [loadingMsg, setLoadingMsg] = useState(true)
+  const [seeding,    setSeeding]    = useState(false)
 
   useEffect(() => {
     if (!user || !child) return
@@ -272,53 +366,149 @@ export default function PesanPage() {
     return () => unsubs.forEach(u => u())
   }, [user, child])
 
-  const unreadCount = chats.filter(c => !c.isRead && c.sender === 'child').length
+  // Auto mark-as-read saat parent buka tab Chat
+  useEffect(() => {
+    if (activeTab !== 'chat' || !user || !child) return
+    chats
+      .filter(c => !c.isRead && c.sender === 'child')
+      .forEach(msg => {
+        updateDoc(doc(db, 'users', user.uid, 'children', child.id, 'chats', msg.id), { isRead: true })
+      })
+  }, [activeTab, chats, user, child])
 
   async function postThread(text: string) {
     if (!user || !child) return
-    await addDoc(threadsCol(user.uid, child.id), { text, sender: 'parent', replies: [], createdAt: serverTimestamp() })
+    await addDoc(threadsCol(user.uid, child.id), {
+      text, sender: 'parent', replies: [], createdAt: serverTimestamp(),
+    })
+    if (child.fcmToken) {
+      await sendNotification(
+        child.fcmToken,
+        '📢 Ada kabar dari Ayah/Bunda!',
+        text.length > 60 ? text.slice(0, 60) + '...' : text,
+        { type: 'kabar' },
+      )
+    }
+  }
+
+  async function replyThread(threadId: string, text: string) {
+    if (!user || !child) return
+    await updateDoc(doc(db, 'users', user.uid, 'children', child.id, 'messages', threadId), {
+      replies: arrayUnion({ text, sender: 'parent', createdAt: new Date() }),
+    })
+    if (child.fcmToken) {
+      await sendNotification(
+        child.fcmToken,
+        '💬 Ayah/Bunda membalas kabarmu',
+        text.length > 60 ? text.slice(0, 60) + '...' : text,
+        { type: 'kabar_reply' },
+      )
+    }
   }
 
   async function sendChat(text: string) {
     if (!user || !child) return
-    await addDoc(chatsCol(user.uid, child.id), { text, sender: 'parent', isRead: true, createdAt: serverTimestamp() })
+    await addDoc(chatsCol(user.uid, child.id), {
+      text, sender: 'parent', isRead: true, createdAt: serverTimestamp(),
+    })
+    if (child.fcmToken) {
+      await sendNotification(
+        child.fcmToken,
+        '💬 Pesan dari Ayah/Bunda',
+        text.length > 60 ? text.slice(0, 60) + '...' : text,
+        { type: 'chat' },
+      )
+    }
   }
 
-  const isLoading = childLoading || loadingMsg
+  async function seedDummyData() {
+    if (!user || !child) return
+    setSeeding(true)
+    const childName = child.name
+
+    // Dummy threads
+    await addDoc(threadsCol(user.uid, child.id), {
+      text: 'Semangat belajar hari ini ya! Ayah/Bunda bangga sama kamu 💪',
+      sender: 'parent', createdAt: new Date(Date.now() - 2 * 3600000),
+      replies: [
+        { text: 'Iya Ayah! Aku udah belajar matematika tadi 😊', sender: 'child', createdAt: new Date(Date.now() - 1.5 * 3600000) },
+      ],
+    })
+    await addDoc(threadsCol(user.uid, child.id), {
+      text: 'Jangan lupa istirahat ya, jangan main HP terus 📵',
+      sender: 'parent', createdAt: new Date(Date.now() - 24 * 3600000),
+      replies: [],
+    })
+
+    // Dummy chats
+    const msgs = [
+      { text: 'Halo! Sudah makan siang belum?', sender: 'parent', isRead: true, createdAt: new Date(Date.now() - 3 * 3600000) },
+      { text: 'Udah Bunda! Aku makan nasi sama ayam 🍗', sender: 'child', isRead: true, createdAt: new Date(Date.now() - 2.8 * 3600000) },
+      { text: `Bagus! Nanti belajar yang rajin ya ${childName}`, sender: 'parent', isRead: true, createdAt: new Date(Date.now() - 2.5 * 3600000) },
+      { text: 'Oke Bunda! Aku mau kuis dulu ah 📚', sender: 'child', isRead: false, createdAt: new Date(Date.now() - 30 * 60000) },
+    ]
+    for (const m of msgs) {
+      await addDoc(chatsCol(user.uid, child.id), m)
+    }
+    setSeeding(false)
+  }
+
+  const unreadCount = chats.filter(c => !c.isRead && c.sender === 'child').length
+  const isLoading   = childLoading || loadingMsg
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-extrabold text-[22px]">Pesan</h1>
-          <p className="text-[13px] text-[#9CA3AF] mt-0.5">
-            {child ? `Komunikasi dengan ${child.name}` : 'Komunikasi dengan anak'}
-          </p>
+    <div className="flex flex-col h-full">
+
+      {/* Header — shrink-0 */}
+      <div className="px-6 pt-6 shrink-0 max-w-2xl mx-auto w-full space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="font-extrabold text-[22px]">Pesan</h1>
+            <p className="text-[13px] text-[#9CA3AF] mt-0.5">
+              {child ? `Komunikasi dengan ${child.name}` : 'Komunikasi dengan anak'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                onClick={seedDummyData}
+                disabled={seeding || !child}
+                className="px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-dashed border-[#D1D5DB] text-[#9CA3AF] hover:border-[#0095F6] hover:text-[#0095F6] transition-colors disabled:opacity-40"
+              >
+                {seeding ? '...' : '🧪 Dummy Data'}
+              </button>
+            )}
+            <ChildSwitcher />
+          </div>
         </div>
-        <ChildSwitcher />
+
+        {/* Tab bar */}
+        <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">
+          <button onClick={() => setActiveTab('kabar')}
+            className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-colors ${activeTab === 'kabar' ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
+            📢 Kabar
+          </button>
+          <button onClick={() => setActiveTab('chat')}
+            className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-colors ${activeTab === 'chat' ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
+            💬 Chat
+            {unreadCount > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-[#EF4444] text-white text-[10px] font-bold">{unreadCount}</span>
+            )}
+          </button>
+        </div>
       </div>
 
-      <div className="flex gap-1 bg-[#F3F4F6] rounded-xl p-1">
-        <button onClick={() => setActiveTab('kabar')}
-          className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-colors ${activeTab === 'kabar' ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
-          📢 Kabar
-        </button>
-        <button onClick={() => setActiveTab('chat')}
-          className={`flex-1 py-2 rounded-lg text-[13px] font-semibold transition-colors ${activeTab === 'chat' ? 'bg-white shadow-sm text-[#0A0A0A]' : 'text-[#737373]'}`}>
-          💬 Chat
-          {unreadCount > 0 && (
-            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-[#EF4444] text-white text-[10px] font-bold">{unreadCount}</span>
-          )}
-        </button>
+      {/* Content — flex-1, fills remaining height */}
+      <div className="flex-1 min-h-0 px-6 pb-6 max-w-2xl mx-auto w-full mt-4 overflow-hidden">
+        {isLoading ? <Skeleton /> : !child ? (
+          <div className="text-center py-12 text-[#9CA3AF]">Belum ada anak terdaftar</div>
+        ) : activeTab === 'kabar' ? (
+          <KabarTab childName={child.name} threads={threads} onPost={postThread} onReply={replyThread} />
+        ) : (
+          <ChatTab childName={child.name} chats={chats} onSend={sendChat} />
+        )}
       </div>
 
-      {isLoading ? <Skeleton /> : !child ? (
-        <div className="text-center py-12 text-[#9CA3AF]">Belum ada anak terdaftar</div>
-      ) : activeTab === 'kabar' ? (
-        <KabarTab childName={child.name} threads={threads} onPost={postThread} />
-      ) : (
-        <ChatTab childName={child.name} chats={chats} onSend={sendChat} />
-      )}
     </div>
   )
 }
