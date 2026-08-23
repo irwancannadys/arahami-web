@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
-  serverExternalPackages: ['tesseract.js', 'sharp'],
+  serverExternalPackages: ['sharp'],
   async headers() {
     return [
       {

@@ -1,3 +1,5 @@
+import { auth } from './firebase/config'
+
 export async function sendNotification(
   token: string,
   title: string,
@@ -5,11 +7,12 @@ export async function sendNotification(
   data?: Record<string, string>,
 ): Promise<void> {
   try {
+    const idToken = await auth.currentUser?.getIdToken()
     await fetch('/api/notifications/send', {
       method:  'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-api-secret': 'arahami-secret-2026',
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${idToken}`,
       },
       body: JSON.stringify({ token, title, body, data }),
     })

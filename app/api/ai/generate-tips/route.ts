@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { generateText, checkApiSecret, parseGeminiJson } from '@/lib/gemini'
+import { generateText, checkAuth, parseGeminiJson } from '@/lib/gemini'
 
 const PROMPT = `
 Kamu adalah pakar parenting dan pendidikan anak SD Indonesia.
@@ -37,7 +37,7 @@ Total: tepat 8 tips.
 `.trim()
 
 export async function POST(req: Request) {
-  if (!checkApiSecret(req)) {
+  if (!(await checkAuth(req))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

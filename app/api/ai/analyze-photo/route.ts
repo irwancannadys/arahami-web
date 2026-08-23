@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { generateText, SUBJECT_LABELS, checkApiSecret, parseGeminiJson } from '@/lib/gemini'
+import { generateText, SUBJECT_LABELS, checkAuth, parseGeminiJson } from '@/lib/gemini'
 
 interface PhotoInput {
   imageBase64: string
@@ -35,7 +35,7 @@ ${rawText}
 }
 
 export async function POST(req: Request) {
-  if (!checkApiSecret(req)) {
+  if (!(await checkAuth(req))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

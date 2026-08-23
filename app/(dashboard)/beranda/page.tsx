@@ -365,9 +365,10 @@ export default function BerandaPage() {
             return
           }
         }
+        const idToken = await user?.getIdToken()
         const res = await fetch('/api/ai/generate-tips', {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-secret': 'arahami-secret-2026' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
           body:    JSON.stringify({}),
         })
         if (!res.ok) throw new Error('API error')
@@ -446,9 +447,11 @@ export default function BerandaPage() {
                     const today = new Date().toISOString().slice(0, 10)
                     getDoc(tipsDoc(today)).then(cached => {
                       if (cached.exists() && Array.isArray(cached.data().items)) { setTips(cached.data().items); return }
-                      fetch('/api/ai/generate-tips', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-secret': 'arahami-secret-2026' }, body: JSON.stringify({}) })
-                        .then(r => r.json()).then(({ tips: g }) => { setDoc(tipsDoc(today), { generatedAt: serverTimestamp(), items: g }); setTips(g) })
-                        .catch(() => setTipsError(true))
+                      user?.getIdToken().then(idToken => {
+                        fetch('/api/ai/generate-tips', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` }, body: JSON.stringify({}) })
+                          .then(r => r.json()).then(({ tips: g }) => { setDoc(tipsDoc(today), { generatedAt: serverTimestamp(), items: g }); setTips(g) })
+                          .catch(() => setTipsError(true))
+                      })
                     }).catch(() => setTipsError(true))
                   }}}
                   className="px-4 py-2 rounded-xl bg-[#0095F6] text-white text-[13px] font-semibold hover:bg-[#0074CC] transition-colors"

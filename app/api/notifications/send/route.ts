@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminMessaging } from '@/lib/firebase/admin'
-import { checkApiSecret } from '@/lib/gemini'
+import { checkAuth } from '@/lib/gemini'
 
 export interface NotifPayload {
   token: string
@@ -10,7 +10,7 @@ export interface NotifPayload {
 }
 
 export async function POST(req: Request) {
-  if (!checkApiSecret(req)) {
+  if (!(await checkAuth(req))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

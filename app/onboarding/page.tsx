@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { doc, collection, writeBatch } from 'firebase/firestore'
-import { db } from '@/lib/firebase/config'
+import { db, auth } from '@/lib/firebase/config'
 import { useAuthContext } from '@/components/layout/AuthProvider'
 import { childCodeDoc } from '@/lib/firebase/firestore-paths'
 import { DAYS, getTopics, SUBJECT_LABELS } from '@/lib/curriculum'
@@ -159,9 +159,10 @@ export default function OnboardingPage() {
     })
 
     try {
+      const idToken = await auth.currentUser?.getIdToken()
       const res = await fetch('/api/ai/generate-topics', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-secret': 'arahami-secret-2026' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
         body: JSON.stringify({ kelas: data.childGrade, subjects: allSubjects }),
       })
       if (!res.ok) throw new Error('Gagal mendapatkan topik dari AI')
@@ -256,9 +257,10 @@ export default function OnboardingPage() {
       let topicsForSubject: string[] = []
 
       try {
+        const idToken = await auth.currentUser?.getIdToken()
         const res = await fetch('/api/ai/analyze-photo', {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-secret': 'arahami-secret-2026' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
           body: JSON.stringify({ images: photos, subject, kelas: data.childGrade }),
         })
         if (res.ok) {

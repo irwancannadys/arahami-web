@@ -1,7 +1,7 @@
 # Arahami Web — Development Progress
 
 > Created: Agustus 2026
-> Last updated: Agustus 2026 (session 21)
+> Last updated: 2026-08-23 (session 22 — security hardening + deploy prep, belum di-deploy)
 > Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Firebase · Groq AI
 
 ---
@@ -140,33 +140,37 @@
 | 17 | UI Polish — login redesign (split layout, logo besar), sidebar logo + parent card | ✅ |
 | 18 | Belajar Weekend — toggle per anak, jadwal Sabtu/Minggu, validasi, warning topik kosong | ✅ |
 | 19 | Generate quiz prompt improvement — chain-of-thought, grade hints, temperature 0.3 | ✅ |
-| **20** | **Deploy OCR service ke Railway** | ❌ |
-| **21** | **Mobile integration — Android hit web API routes** | ❌ |
-| **17** | **Deploy OCR service ke Railway** | ❌ |
-| **18** | **Mobile integration — Android hit web API routes** | ❌ |
+| 20 | Security hardening — Firestore Rules scoped + API secret → Firebase ID Token (4/5 routes) | ✅ |
+| 21 | Fix Groq model deprecated (`llama-3.3-70b-versatile` → `openai/gpt-oss-120b`) | ✅ |
+| 22 | Deploy OCR service ke Railway | 🔶 File prep selesai (`requirements.txt` pinned, `Procfile`, `.python-version`) — belum di-deploy |
+| 23 | Setup Vercel project + env vars + first deploy | ❌ Next |
+| 24 | Mobile integration — Android hit web API routes | ❌ |
 
 ---
 
 ## Phase AI (Web side)
 | Item | Status |
 |---|---|
-| AI provider text: Groq llama-3.3-70b | ✅ |
-| `/api/ai/generate-topics` | ✅ |
-| `/api/ai/generate-quiz` | ✅ |
-| `/api/ai/generate-tips` — Parenting Tips Feed harian | ✅ |
-| `/api/ai/analyze-photo` — OCR pipeline | 🔶 lokal selesai, Railway pending |
-| OCR stack: Python FastAPI + PaddleOCR + OpenCV | ✅ lokal |
-| Deploy OCR ke Railway | ❌ |
+| AI provider text: Groq `openai/gpt-oss-120b` (ganti dari `llama-3.3-70b-versatile` yang di-retire Groq, 2026-08-23) | ✅ |
+| `/api/ai/generate-topics` | ✅ auth: Firebase ID Token |
+| `/api/ai/generate-quiz` | ✅ auth: shared secret (dipanggil Android, belum ada identitas Firebase — lihat Known Issues) |
+| `/api/ai/generate-tips` — Parenting Tips Feed harian | ✅ auth: Firebase ID Token |
+| `/api/ai/analyze-photo` — OCR pipeline | 🔶 kode + auth (ID Token) selesai, model vision (OpenRouter) masih aktif — Railway deploy pending |
+| OCR stack: Python FastAPI + PaddleOCR + OpenCV | ✅ lokal, deploy-ready (requirements pinned, Procfile, .python-version) |
+| Deploy OCR ke Railway | ❌ Next |
 
 ---
 
 ## ⚠️ Known Issues / Tech Debt
 | Item | Priority |
 |---|---|
-| API secret `arahami-secret-2026` hardcoded di client | 🔴 Fix sebelum production — pindah ke env var |
+| ~~API secret `arahami-secret-2026` hardcoded di client~~ | ✅ Fixed 2026-08-23 — 4 route parent-facing pindah ke Firebase ID Token, secret literal dihapus dari semua client call site |
+| `generate-quiz` masih pakai shared-secret (`API_SECRET`) | 🟡 Residual risk — dipanggil Android yang belum punya identitas Firebase (login masih 4-digit code tanpa Auth). Baru bisa dibenerin total kalau Android migrasi ke Firebase Custom Auth Token (child tetap input 4-digit code, tapi backend-nya mint custom token — lihat catatan di Android `ANDROID_PHASE2.md`/plan session 2026-08-23). Sampai itu terjadi, seseorang yang nemu secret ini cuma bisa boros-in kuota Groq, TIDAK bisa akses data. |
+| Firestore Rules baru di-scope, belum 100% aman untuk child subtree | 🟡 Sama akar masalah dengan di atas — `/children/{childId}/**` masih `allow read, write: if true` karena Android child login gak punya `request.auth`. Parent data (`/users/{uid}`) sudah dikunci penuh ke owner. |
 | Detail sesi kuis (teks soal + jawaban anak + jawaban benar) tidak tersedia | 🔴 Android hanya simpan `answers: ["CORRECT","WRONG",...]` ke Firestore. Perlu update Android agar simpan `{ questionText, userAnswer, correctAnswer, isCorrect }[]` per soal. Web modal sudah siap menampilkan jika data ada. |
 | Kelas 6 MTK kadang generate topik tidak relevan | 🟡 Minor |
-| `ind.traineddata` perlu di-gitignore | 🟢 Cleanup |
+| `ind.traineddata` perlu di-gitignore | ✅ Sudah di-`.gitignore`, gak pernah ke-commit — false alarm, dicek ulang 2026-08-22 |
+| Kualitas konten `openai/gpt-oss-120b` (Bahasa Indonesia) belum di-evaluasi mendalam | 🟡 Cuma dicek format JSON valid, belum baca kualitas isi tips/topik secara teliti |
 
 ---
 
@@ -176,7 +180,7 @@
 | Android: lepas parent mode — web take over sepenuhnya | Mode ortu di Android diarahkan ke web |
 | Android: swap `QuizRepositoryDummy` → `QuizRepositoryImpl` | Hit `/api/ai/generate-quiz` di Vercel |
 | Android: `OnboardingViewModel` → hit `/api/ai/generate-topics` | Ganti dari hardcoded CurriculumData |
-| Android: tambah `x-api-secret` header di setiap request | Nilai dari env, bukan hardcoded |
+| Android: tambah `x-api-secret` header (cuma untuk `generate-quiz`, 4 route lain sekarang pakai Firebase ID Token) | Nilai dari env (`BuildConfig.API_SECRET`), bukan hardcoded — sudah begini di Android |
 | Android: Foto Buku → call Python OCR service (Railway URL) | Setelah Railway deploy |
 | Android: baca `enabledRewards[]` dari child doc untuk filter preset reward | Agar Setting Reward di web efektif |
 | Android: update QuizSession Firestore — simpan detail per soal | Fix agar web bisa tampilkan teks soal + jawaban di detail sesi |

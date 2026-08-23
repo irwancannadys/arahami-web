@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { generateText, SUBJECT_LABELS, checkApiSecret, parseGeminiJson } from '@/lib/gemini'
+import { generateText, SUBJECT_LABELS, checkAuth, parseGeminiJson } from '@/lib/gemini'
 import { getTopics } from '@/lib/curriculum'
 
 // Kelas yang butuh iterasi karena AI sering drop level
@@ -56,7 +56,7 @@ Target: 5-8 topik per mapel, spesifik dan sesuai level kelas ${kelas} SD.
 }
 
 export async function POST(req: Request) {
-  if (!checkApiSecret(req)) {
+  if (!(await checkAuth(req))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

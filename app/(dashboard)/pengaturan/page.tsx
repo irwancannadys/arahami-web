@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  doc, collection, getDocs, updateDoc, addDoc, deleteDoc, writeBatch,
+  doc, collection, getDocs, updateDoc, setDoc, deleteDoc, writeBatch,
 } from 'firebase/firestore'
-import { db } from '@/lib/firebase/config'
+import { db, auth } from '@/lib/firebase/config'
 import { useAuthContext } from '@/components/layout/AuthProvider'
 import { useChild } from '@/lib/context/ChildContext'
 import { childDoc, schedulesCol, topicsCol } from '@/lib/firebase/firestore-paths'
@@ -118,9 +118,10 @@ function TabProfil({ child, uid, onSaved }: { child: Child; uid: string; onSaved
         const schedulesSnap = await getDocs(schedulesCol(uid, child.id))
         const allSubjects = [...new Set(schedulesSnap.docs.flatMap(d => (d.data() as Schedule).subjects))]
         if (allSubjects.length > 0) {
+          const idToken = await auth.currentUser?.getIdToken()
           const res = await fetch('/api/ai/generate-topics', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-secret': 'arahami-secret-2026' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
             body: JSON.stringify({ kelas: grade, subjects: allSubjects }),
           })
           if (res.ok) {
@@ -647,8 +648,9 @@ function TabTopik({ child, uid, onSaved }: { child: Child; uid: string; onSaved:
     if (!name || !activeSubject) return
     setAddingManual(true)
     try {
-      const ref = await addDoc(topicsCol(uid, child.id), {
-        subject: activeSubject, topicName: name, source: 'MANUAL', isDone: false, order: activeTopics.length,
+      const ref = doc(topicsCol(uid, child.id))
+      await setDoc(ref, {
+        id: ref.id, subject: activeSubject, topicName: name, source: 'MANUAL', isDone: false, order: activeTopics.length,
       })
       setTopics(prev => [...prev, { id: ref.id, subject: activeSubject, topicName: name, source: 'MANUAL', isDone: false, order: activeTopics.length }])
       setManualInput('')
@@ -659,9 +661,10 @@ function TabTopik({ child, uid, onSaved }: { child: Child; uid: string; onSaved:
   async function generateFromAI() {
     setAiLoading(true); setAiResults([]); setAiSelected(new Set())
     try {
+      const idToken = await auth.currentUser?.getIdToken()
       const res = await fetch('/api/ai/generate-topics', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-secret': 'arahami-secret-2026' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
         body: JSON.stringify({ kelas: child.kelas, subjects: [activeSubject] }),
       })
       if (res.ok) {

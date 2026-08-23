@@ -1,9 +1,11 @@
-import { getMessaging, getToken, onMessage } from 'firebase/messaging'
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging'
 import { doc, setDoc, getDocs, collection } from 'firebase/firestore'
 import { app, db } from './config'
 
 export async function registerFcmToken(uid: string): Promise<string | null> {
   try {
+    if (!(await isSupported())) return null
+
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return null
 
@@ -36,6 +38,15 @@ export async function registerFcmToken(uid: string): Promise<string | null> {
 
 export function onForegroundMessage(callback: (payload: any) => void) {
   if (typeof window === 'undefined') return () => {}
-  const messaging = getMessaging(app)
-  return onMessage(messaging, callback)
+
+  let unsubscribe = () => {}
+  isSupported()
+    .then(supported => {
+      if (!supported) return
+      const messaging = getMessaging(app)
+      unsubscribe = onMessage(messaging, callback)
+    })
+    .catch(e => console.warn('[fcm] onForegroundMessage unsupported:', e))
+
+  return () => unsubscribe()
 }

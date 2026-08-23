@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk'
 import OpenAI from 'openai'
+import { adminAuth } from './firebase/admin'
 
 // Groq — text tasks (generate topics, generate quiz)
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
@@ -16,7 +17,7 @@ const openrouter = new OpenAI({
 
 export async function generateText(prompt: string, temperature = 1.0): Promise<string> {
   const res = await groq.chat.completions.create({
-    model:       'llama-3.3-70b-versatile',
+    model:       'openai/gpt-oss-120b',
     messages:    [{ role: 'user', content: prompt }],
     temperature,
   })
@@ -59,6 +60,20 @@ export const SUBJECT_LABELS: Record<string, string> = {
 export function checkApiSecret(req: Request): boolean {
   const secret = req.headers.get('x-api-secret')
   return secret === process.env.API_SECRET
+}
+
+// Dipakai route yang dipanggil dari browser parent (sudah login Google) —
+// verifikasi Firebase ID Token beneran, bukan shared-secret yang kebaca di JS bundle.
+export async function checkAuth(req: Request): Promise<boolean> {
+  const authHeader = req.headers.get('authorization')
+  const idToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  if (!idToken) return false
+  try {
+    await adminAuth.verifyIdToken(idToken)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function parseGeminiJson<T>(text: string): T {
