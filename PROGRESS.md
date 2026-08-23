@@ -1,7 +1,7 @@
 # Arahami Web — Development Progress
 
 > Created: Agustus 2026
-> Last updated: 2026-08-23 (session 22 — security hardening + deploy prep, belum di-deploy)
+> Last updated: 2026-08-23 (session 22 — security hardening + LIVE di Vercel: `arahami-web.vercel.app`. OCR/Railway masih pending)
 > Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Firebase · Groq AI
 
 ---
@@ -143,8 +143,9 @@
 | 20 | Security hardening — Firestore Rules scoped + API secret → Firebase ID Token (4/5 routes) | ✅ |
 | 21 | Fix Groq model deprecated (`llama-3.3-70b-versatile` → `openai/gpt-oss-120b`) | ✅ |
 | 22 | Deploy OCR service ke Railway | 🔶 File prep selesai (`requirements.txt` pinned, `Procfile`, `.python-version`) — belum di-deploy |
-| 23 | Setup Vercel project + env vars + first deploy | ❌ Next |
-| 24 | Mobile integration — Android hit web API routes | ❌ |
+| 23 | Setup Vercel project + env vars + first deploy | ✅ Live di `arahami-web.vercel.app` |
+| 24 | Fix `firebase-admin`/`jose` ESM crash di Vercel production (`generate-topics`/`analyze-photo`/`generate-tips`/`notifications/send` sempat 500 terus di production meski aman di lokal) | ✅ Fix: pin `jose@4.15.9` via `overrides` di `package.json` — lihat detail di bawah |
+| 25 | Mobile integration — Android hit web API routes | ❌ |
 
 ---
 
@@ -157,7 +158,8 @@
 | `/api/ai/generate-tips` — Parenting Tips Feed harian | ✅ auth: Firebase ID Token |
 | `/api/ai/analyze-photo` — OCR pipeline | 🔶 kode + auth (ID Token) selesai, model vision (OpenRouter) masih aktif — Railway deploy pending |
 | OCR stack: Python FastAPI + PaddleOCR + OpenCV | ✅ lokal, deploy-ready (requirements pinned, Procfile, .python-version) |
-| Deploy OCR ke Railway | ❌ Next |
+| Deploy OCR service — platform hosting | ❌ **Belum putus** — Railway trial abis (butuh upgrade $5/bln). Riset alternatif (2026-08-23): DigitalOcean App Platform $5/bln (basic-xxs, brand lebih established) vs Railway $5/bln (project udah ada, tinggal upgrade) vs Render $7/bln vs Fly.io realistanya $8-25/bln. ⚠️ Perlu dicek: tier RAM termurah (512MB) mungkin kurang buat PaddleOCR, belum ditest langsung. Konfirmasi: foto TIDAK disimpan di Firebase Storage maupun di service-nya sendiri (cuma numpang lewat pas diproses) — jadi gak ada storage cost/bloat, keputusan platform murni soal compute (RAM/CPU) doang. |
+| Vision model OpenRouter (`generateTextWithImage` di `lib/gemini.ts`) | ⚠️ Dead code — sengaja gak dipake (OpenRouter berpotensi berbayar), makanya pendekatan Python OCR (self-hosted, gratis) yang dipilih. Boleh dihapus kapan-kapan sebagai cleanup, gak urgent. |
 
 ---
 
@@ -171,6 +173,7 @@
 | Kelas 6 MTK kadang generate topik tidak relevan | 🟡 Minor |
 | `ind.traineddata` perlu di-gitignore | ✅ Sudah di-`.gitignore`, gak pernah ke-commit — false alarm, dicek ulang 2026-08-22 |
 | Kualitas konten `openai/gpt-oss-120b` (Bahasa Indonesia) belum di-evaluasi mendalam | 🟡 Cuma dicek format JSON valid, belum baca kualitas isi tips/topik secara teliti |
+| ~~`firebase-admin`/`jose` ESM crash di production~~ | ✅ Fixed 2026-08-23 — `verifyIdToken()` (dipakai `checkAuth`) crash `ERR_REQUIRE_ESM` di Vercel meski jalan normal di `next dev`/`next build`+`next start` lokal. Sebab: `jwks-rsa` (dependency `firebase-admin/auth`) pakai `require('jose')`, tapi `jose@6.x` pure ESM. `serverExternalPackages: ['firebase-admin']` doang TIDAK cukup. Fix final: pin `"overrides": { "jose": "4.15.9" }` di `package.json` (versi terakhir yang masih ada build CJS). Verifikasi paling akurat: cek `.next/server/app/api/<route>/route.js.nft.json` — harus nunjuk ke `jose/dist/node/cjs/index.js`, bukan `dist/webapi/index.js`. |
 
 ---
 
