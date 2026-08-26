@@ -1,7 +1,7 @@
 # Arahami Web — Development Progress
 
 > Created: Agustus 2026
-> Last updated: 2026-08-23 (session 22 — security hardening + LIVE di Vercel: `arahami-web.vercel.app`. OCR/Railway masih pending)
+> Last updated: 2026-08-26 (session 23 — Firestore composite index buat query topics, sisanya di ANDROID_PHASE2.md. OCR/Railway masih pending)
 > Stack: Next.js 16 (App Router) · TypeScript · Tailwind v4 · shadcn/ui · Firebase · Groq AI
 
 ---
@@ -146,6 +146,7 @@
 | 23 | Setup Vercel project + env vars + first deploy | ✅ Live di `arahami-web.vercel.app` |
 | 24 | Fix `firebase-admin`/`jose` ESM crash di Vercel production (`generate-topics`/`analyze-photo`/`generate-tips`/`notifications/send` sempat 500 terus di production meski aman di lokal) | ✅ Fix: pin `jose@4.15.9` via `overrides` di `package.json` — lihat detail di bawah |
 | 25 | Mobile integration — Android hit web API routes | ❌ |
+| 26 | Firestore composite index buat query `topics` (`whereEqualTo("subject")` + `orderBy("order")`) — index-nya belum pernah dibuat sejak awal, bikin Android Home gagal load mapel hari ini (error ke-swallow, keliatannya kayak "jadwal kosong" padahal query-nya nge-crash) | ✅ Deploy via `firestore.indexes.json` + `firebase deploy --only firestore:indexes` (checked-in, bukan klik manual di console) |
 
 ---
 
