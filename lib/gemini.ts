@@ -57,13 +57,9 @@ export const SUBJECT_LABELS: Record<string, string> = {
   PJOK:      'PJOK (Pendidikan Jasmani)',
 }
 
-export function checkApiSecret(req: Request): boolean {
-  const secret = req.headers.get('x-api-secret')
-  return secret === process.env.API_SECRET
-}
-
-// Dipakai route yang dipanggil dari browser parent (sudah login Google) —
-// verifikasi Firebase ID Token beneran, bukan shared-secret yang kebaca di JS bundle.
+// Verifikasi Firebase ID Token beneran — dipakai route dari browser parent (Google
+// Sign-In) dan generate-quiz dari Android (Anonymous Auth, gak ada UI login anak).
+// Gak ada shared-secret lagi yang bisa kebaca dari JS bundle / decompile APK.
 export async function checkAuth(req: Request): Promise<boolean> {
   const authHeader = req.headers.get('authorization')
   const idToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null

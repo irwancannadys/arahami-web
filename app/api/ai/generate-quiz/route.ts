@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { generateText, SUBJECT_LABELS, checkApiSecret, parseGeminiJson } from '@/lib/gemini'
+import { generateText, SUBJECT_LABELS, checkAuth, parseGeminiJson } from '@/lib/gemini'
 
 // Batasan materi per kelas per mapel — mencegah soal terlalu susah/mudah
 const GRADE_HINTS: Record<number, Record<string, string>> = {
@@ -72,7 +72,7 @@ const GRADE_HINTS: Record<number, Record<string, string>> = {
 }
 
 export async function POST(req: Request) {
-  if (!checkApiSecret(req)) {
+  if (!(await checkAuth(req))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

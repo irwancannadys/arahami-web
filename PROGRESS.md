@@ -147,6 +147,7 @@
 | 24 | Fix `firebase-admin`/`jose` ESM crash di Vercel production (`generate-topics`/`analyze-photo`/`generate-tips`/`notifications/send` sempat 500 terus di production meski aman di lokal) | ✅ Fix: pin `jose@4.15.9` via `overrides` di `package.json` — lihat detail di bawah |
 | 25 | Mobile integration — Android hit web API routes | ❌ |
 | 26 | Firestore composite index buat query `topics` (`whereEqualTo("subject")` + `orderBy("order")`) — index-nya belum pernah dibuat sejak awal, bikin Android Home gagal load mapel hari ini (error ke-swallow, keliatannya kayak "jadwal kosong" padahal query-nya nge-crash) | ✅ Deploy via `firestore.indexes.json` + `firebase deploy --only firestore:indexes` (checked-in, bukan klik manual di console) |
+| 27 | `generate-quiz` auth: shared secret (`API_SECRET`) → Firebase ID Token, nutup residual risk terakhir dari task 20 | ✅ Android migrasi ke Firebase Anonymous Auth (bukan Custom Auth Token) — child tetap login 4-digit code, tapi sekalian sign-in anonymous di background buat dapetin identitas Firebase asli. `checkApiSecret` dihapus total dari `lib/gemini.ts` |
 
 ---
 
@@ -155,7 +156,7 @@
 |---|---|
 | AI provider text: Groq `openai/gpt-oss-120b` (ganti dari `llama-3.3-70b-versatile` yang di-retire Groq, 2026-08-23) | ✅ |
 | `/api/ai/generate-topics` | ✅ auth: Firebase ID Token |
-| `/api/ai/generate-quiz` | ✅ auth: shared secret (dipanggil Android, belum ada identitas Firebase — lihat Known Issues) |
+| `/api/ai/generate-quiz` | ✅ auth: Firebase ID Token (Android sign-in Anonymous di background sebelum manggil) |
 | `/api/ai/generate-tips` — Parenting Tips Feed harian | ✅ auth: Firebase ID Token |
 | `/api/ai/analyze-photo` — OCR pipeline | 🔶 kode + auth (ID Token) selesai, model vision (OpenRouter) masih aktif — Railway deploy pending |
 | OCR stack: Python FastAPI + PaddleOCR + OpenCV | ✅ lokal, deploy-ready (requirements pinned, Procfile, .python-version) |
@@ -168,8 +169,8 @@
 | Item | Priority |
 |---|---|
 | ~~API secret `arahami-secret-2026` hardcoded di client~~ | ✅ Fixed 2026-08-23 — 4 route parent-facing pindah ke Firebase ID Token, secret literal dihapus dari semua client call site |
-| `generate-quiz` masih pakai shared-secret (`API_SECRET`) | 🟡 Residual risk — dipanggil Android yang belum punya identitas Firebase (login masih 4-digit code tanpa Auth). Baru bisa dibenerin total kalau Android migrasi ke Firebase Custom Auth Token (child tetap input 4-digit code, tapi backend-nya mint custom token — lihat catatan di Android `ANDROID_PHASE2.md`/plan session 2026-08-23). Sampai itu terjadi, seseorang yang nemu secret ini cuma bisa boros-in kuota Groq, TIDAK bisa akses data. |
-| Firestore Rules baru di-scope, belum 100% aman untuk child subtree | 🟡 Sama akar masalah dengan di atas — `/children/{childId}/**` masih `allow read, write: if true` karena Android child login gak punya `request.auth`. Parent data (`/users/{uid}`) sudah dikunci penuh ke owner. |
+| ~~`generate-quiz` masih pakai shared-secret (`API_SECRET`)~~ | ✅ Fixed — Android sekarang sign-in Firebase Anonymous Auth abis login PIN, `generate-quiz` pindah ke `checkAuth` (ID Token) kayak 4 route lain. `API_SECRET` dihapus total dari env + kode (web & Android) |
+| Firestore Rules baru di-scope, belum 100% aman untuk child subtree | 🟡 Anonymous Auth (di atas) BELUM otomatis benerin ini — UID anonymous gak terikat ke `childId` tertentu, jadi rules gak bisa langsung pakai `request.auth.uid` buat scope `/children/{childId}/**`. Masih `allow read, write: if true`. Perlu desain terpisah (misal custom claims childId↔UID) kalau mau dibenerin. Parent data (`/users/{uid}`) sudah dikunci penuh ke owner. |
 | Detail sesi kuis (teks soal + jawaban anak + jawaban benar) tidak tersedia | 🔴 Android hanya simpan `answers: ["CORRECT","WRONG",...]` ke Firestore. Perlu update Android agar simpan `{ questionText, userAnswer, correctAnswer, isCorrect }[]` per soal. Web modal sudah siap menampilkan jika data ada. |
 | Kelas 6 MTK kadang generate topik tidak relevan | 🟡 Minor |
 | `ind.traineddata` perlu di-gitignore | ✅ Sudah di-`.gitignore`, gak pernah ke-commit — false alarm, dicek ulang 2026-08-22 |
