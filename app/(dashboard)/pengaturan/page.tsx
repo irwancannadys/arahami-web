@@ -989,20 +989,280 @@ function EditChildView({
   )
 }
 
+// ─── Pilih Anak (shared — dipakai Edit Anak & Progress Belajar) ──────────────
+
+function ChildPickerList({ title, onBack, onSelect }: {
+  title: string; onBack: () => void; onSelect: (child: Child) => void
+}) {
+  const { children } = useChild()
+  const router        = useRouter()
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="flex items-center justify-center w-8 h-8 rounded-xl border border-[#E8EAF0] hover:bg-[#F5F7FA] transition-colors"
+        >
+          <ArrowLeft size={16} className="text-[#374151]" />
+        </button>
+        <h2 className="font-extrabold text-[18px]">{title}</h2>
+      </div>
+
+      {children.length === 0 ? (
+        <div className="text-center py-12 space-y-3">
+          <p className="text-3xl">👶</p>
+          <p className="font-semibold text-[#737373]">Belum ada anak terdaftar</p>
+          <button onClick={() => router.push('/onboarding')}
+            className="px-6 py-2.5 rounded-xl bg-[#0095F6] text-white text-[14px] font-bold hover:bg-[#0074CC] transition-colors">
+            Daftar Anak Pertama
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white border border-[#DBDBDB] rounded-2xl overflow-hidden">
+          {children.map(child => (
+            <button key={child.id} onClick={() => onSelect(child)}
+              className="w-full flex items-center gap-4 px-5 py-4 border-b border-[#F3F4F6] last:border-0 hover:bg-[#FAFAFA] transition-colors text-left">
+              <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] flex items-center justify-center text-[20px] shrink-0">
+                {themeEmoji(child.theme)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-[14px]">{child.name}</p>
+                <p className="text-[12px] text-[#737373] mt-0.5">Kelas {child.kelas}</p>
+              </div>
+              <ChevronRight size={18} className="text-[#A8A8A8] shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Progress Belajar — checklist materi yang udah diajarin di sekolah ───────
+
+function ProgressBelajarView({ child, uid, onBack }: { child: Child; uid: string; onBack: () => void }) {
+  const [topics,     setTopics]     = useState<Topic[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [pending,    setPending]    = useState<Record<string, boolean>>({})
+  const [saving,     setSaving]     = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false)
+  const [validationMsg,   setValidationMsg]   = useState<string | null>(null)
+
+  useEffect(() => { load() }, [uid, child.id])
+
+  async function load() {
+    setLoading(true)
+    const snap = await getDocs(topicsCol(uid, child.id))
+    setTopics(snap.docs.map(d => ({ id: d.id, ...d.data() } as Topic)))
+    setPending({})
+    setLoading(false)
+  }
+
+  // Toggle cuma ubah state lokal — belum nulis ke Firestore, biar aman dari
+  // race condition kalau ortu klik-klik cepat. Ke-apply beneran pas "Simpan".
+  // Kalau hasil akhirnya balik sama kayak nilai tersimpan, key-nya dihapus dari
+  // pending — biar counter "N perubahan" nunjukin beda beneran, bukan jumlah klik.
+  function toggle(topic: Topic) {
+    const original = topic.isUnlocked ?? true
+    const current  = pending[topic.id] ?? original
+    const next     = !current
+
+    // Validasi: jangan sampai 1 mapel jadi 0 topik ke-centang — anak bisa
+    // jadi gak punya materi sama sekali buat kuis mapel itu.
+    if (current && !next) {
+      const checkedCount = topics
+        .filter(t => t.subject === topic.subject)
+        .filter(t => pending[t.id] ?? (t.isUnlocked ?? true))
+        .length
+      if (checkedCount <= 1) {
+        setValidationMsg(`Minimal 1 topik ${SUBJECT_LABELS[topic.subject] ?? topic.subject} harus tetap dicentang, biar anak masih bisa kuis mapel ini.`)
+        return
+      }
+    }
+
+    setPending(prev => {
+      const copy = { ...prev }
+      if (next === original) delete copy[topic.id]
+      else copy[topic.id] = next
+      return copy
+    })
+  }
+
+  function discard() {
+    setPending({})
+  }
+
+  async function save() {
+    setShowSaveConfirm(false)
+    setSaving(true)
+    try {
+      const batch = writeBatch(db)
+      Object.entries(pending).forEach(([topicId, value]) => {
+        batch.update(doc(db, 'users', uid, 'children', child.id, 'topics', topicId), { isUnlocked: value })
+      })
+      await batch.commit()
+      setTopics(prev => prev.map(t => t.id in pending ? { ...t, isUnlocked: pending[t.id] } : t))
+      setPending({})
+      setSuccessMsg('Progress berhasil disimpan')
+      setTimeout(() => setSuccessMsg(''), 4000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const dirtyCount = Object.keys(pending).length
+  const subjects   = [...new Set(topics.map(t => t.subject))]
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack}
+          className="flex items-center justify-center w-8 h-8 rounded-xl border border-[#E8EAF0] hover:bg-[#F5F7FA] transition-colors shrink-0">
+          <ArrowLeft size={16} className="text-[#374151]" />
+        </button>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-[#E0F2FE] flex items-center justify-center text-[18px]">
+            {themeEmoji(child.theme)}
+          </div>
+          <div>
+            <p className="font-extrabold text-[17px] leading-tight">Progress Belajar</p>
+            <p className="text-[12px] text-[#9CA3AF]">{child.name} · Kelas {child.kelas}</p>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[13px] text-[#737373] leading-relaxed">
+        Centang materi yang udah diajarin gurunya di sekolah — anak cuma bisa latihan dari materi yang dicentang.
+      </p>
+
+      {successMsg && <SuccessBanner message={successMsg} />}
+
+      {loading ? (
+        <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-24 bg-[#F3F4F6] rounded-2xl animate-pulse" />)}</div>
+      ) : subjects.length === 0 ? (
+        <div className="text-center py-10">
+          <p className="text-3xl">📚</p>
+          <p className="text-[#737373] font-semibold mt-2">Belum ada topik</p>
+          <p className="text-[12px] text-[#9CA3AF] mt-1">Tambahkan topik dulu di Edit Anak → Topik</p>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3">
+            {subjects.map(subject => {
+              const subjectTopics = topics.filter(t => t.subject === subject).sort((a, b) => a.order - b.order)
+              const checkedCount  = subjectTopics.filter(t => pending[t.id] ?? (t.isUnlocked ?? true)).length
+              return (
+                <div key={subject} className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[13.5px] font-bold">{SUBJECT_LABELS[subject] ?? subject}</p>
+                    <span className="text-[11px] font-bold text-[#0095F6] bg-white border border-[#BFDBFE] rounded-full px-2.5 py-1">
+                      {checkedCount} dari {subjectTopics.length}
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] text-[#737373] mb-2">Anak cuma bisa latihan dari materi yang dicentang</p>
+                  <div>
+                    {subjectTopics.map(topic => {
+                      const checked = pending[topic.id] ?? (topic.isUnlocked ?? true)
+                      return (
+                        <label key={topic.id} className="flex items-center gap-2.5 py-2 px-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggle(topic)}
+                            className="w-[18px] h-[18px] rounded-md accent-[#0095F6] cursor-pointer"
+                          />
+                          <span className={`text-[13.5px] font-semibold ${checked ? 'text-[#0A0A0A]' : 'text-[#A8A8A8]'}`}>
+                            {topic.topicName}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={discard} disabled={saving || dirtyCount === 0}
+              className="flex-1 py-3 rounded-xl border border-[#DBDBDB] text-[#737373] text-[14px] font-semibold hover:bg-[#F5F5F5] disabled:opacity-40 transition-colors">
+              Batal
+            </button>
+            <div className="flex-1">
+              <SaveButton
+                onClick={() => setShowSaveConfirm(true)}
+                loading={saving}
+                disabled={dirtyCount === 0}
+                label={dirtyCount > 0 ? `Simpan Perubahan (${dirtyCount})` : 'Simpan Perubahan'}
+              />
+            </div>
+          </div>
+
+          {showSaveConfirm && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+                <div className="text-3xl text-center">📍</div>
+                <div className="text-center">
+                  <h3 className="font-extrabold text-[17px]">Simpan Progress Belajar?</h3>
+                  <p className="text-[13px] text-[#737373] mt-1.5 leading-relaxed">
+                    {dirtyCount} perubahan bakal langsung berlaku ke {child.name} — topik yang dicentang jadi bisa dikerjain anak, yang gak dicentang bakal disembunyikan dari pilihan kuis.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setShowSaveConfirm(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-[#DBDBDB] text-[13px] font-semibold hover:bg-[#F5F5F5] transition-colors">
+                    Batal
+                  </button>
+                  <button onClick={save}
+                    className="flex-1 py-2.5 rounded-xl bg-[#0095F6] text-white text-[13px] font-bold hover:bg-[#0074CC] transition-colors">
+                    Ya, Simpan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {validationMsg && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="text-3xl text-center">⚠️</div>
+            <div className="text-center">
+              <h3 className="font-extrabold text-[17px]">Gak Bisa Dihapus</h3>
+              <p className="text-[13px] text-[#737373] mt-1.5 leading-relaxed">{validationMsg}</p>
+            </div>
+            <button onClick={() => setValidationMsg(null)}
+              className="w-full py-2.5 rounded-xl bg-[#0095F6] text-white text-[13px] font-bold hover:bg-[#0074CC] transition-colors">
+              Mengerti
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-type PengaturanView = 'menu' | 'child-list' | 'edit'
+type PengaturanView = 'menu' | 'child-list' | 'edit' | 'progress-child-list' | 'progress'
 
 export default function PengaturanPage() {
-  const { user }            = useAuthContext()
-  const { children }        = useChild()
-  const router              = useRouter()
-  const [view,         setView]         = useState<PengaturanView>('menu')
-  const [editingChild, setEditingChild] = useState<Child | null>(null)
+  const { user }              = useAuthContext()
+  const { children }          = useChild()
+  const router                = useRouter()
+  const [view,          setView]          = useState<PengaturanView>('menu')
+  const [editingChild,  setEditingChild]  = useState<Child | null>(null)
+  const [progressChild, setProgressChild] = useState<Child | null>(null)
 
-  // Sync editingChild dengan data live dari Firestore (handle update enableWeekend dll)
+  // Sync editingChild/progressChild dengan data live dari Firestore (handle update enableWeekend dll)
   const liveEditingChild = editingChild
     ? (children.find(c => c.id === editingChild.id) ?? editingChild)
+    : null
+  const liveProgressChild = progressChild
+    ? (children.find(c => c.id === progressChild.id) ?? progressChild)
     : null
 
   if (!user) return (
@@ -1011,11 +1271,6 @@ export default function PengaturanPage() {
       <div className="p-6 text-center text-[#737373]">Loading...</div>
     </>
   )
-
-  function selectChildToEdit(child: Child) {
-    setEditingChild(child)
-    setView('edit')
-  }
 
   return (
     <>
@@ -1033,44 +1288,29 @@ export default function PengaturanPage() {
 
         {/* View: Pilih anak yang mau diedit */}
         {view === 'child-list' && (
-          <div className="space-y-5">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setView('menu')}
-                className="flex items-center justify-center w-8 h-8 rounded-xl border border-[#E8EAF0] hover:bg-[#F5F7FA] transition-colors"
-              >
-                <ArrowLeft size={16} className="text-[#374151]" />
-              </button>
-              <h2 className="font-extrabold text-[18px]">Pilih Anak</h2>
-            </div>
+          <ChildPickerList
+            title="Pilih Anak"
+            onBack={() => setView('menu')}
+            onSelect={child => { setEditingChild(child); setView('edit') }}
+          />
+        )}
 
-            {children.length === 0 ? (
-              <div className="text-center py-12 space-y-3">
-                <p className="text-3xl">👶</p>
-                <p className="font-semibold text-[#737373]">Belum ada anak terdaftar</p>
-                <button onClick={() => router.push('/onboarding')}
-                  className="px-6 py-2.5 rounded-xl bg-[#0095F6] text-white text-[14px] font-bold hover:bg-[#0074CC] transition-colors">
-                  Daftar Anak Pertama
-                </button>
-              </div>
-            ) : (
-              <div className="bg-white border border-[#DBDBDB] rounded-2xl overflow-hidden">
-                {children.map(child => (
-                  <button key={child.id} onClick={() => selectChildToEdit(child)}
-                    className="w-full flex items-center gap-4 px-5 py-4 border-b border-[#F3F4F6] last:border-0 hover:bg-[#FAFAFA] transition-colors text-left">
-                    <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] flex items-center justify-center text-[20px] shrink-0">
-                      {themeEmoji(child.theme)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-[14px]">{child.name}</p>
-                      <p className="text-[12px] text-[#737373] mt-0.5">Kelas {child.kelas}</p>
-                    </div>
-                    <ChevronRight size={18} className="text-[#A8A8A8] shrink-0" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+        {/* View: Progress Belajar — checklist per anak */}
+        {view === 'progress' && liveProgressChild && (
+          <ProgressBelajarView
+            child={liveProgressChild}
+            uid={user.uid}
+            onBack={() => { setView('progress-child-list'); setProgressChild(null) }}
+          />
+        )}
+
+        {/* View: Pilih anak buat Progress Belajar */}
+        {view === 'progress-child-list' && (
+          <ChildPickerList
+            title="Pilih Anak"
+            onBack={() => setView('menu')}
+            onSelect={child => { setProgressChild(child); setView('progress') }}
+          />
         )}
 
         {/* View: Menu utama */}
@@ -1090,6 +1330,17 @@ export default function PengaturanPage() {
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-[14px]">Edit Anak</p>
                   <p className="text-[12px] text-[#737373] mt-0.5">Profil, jadwal, topik, kode, reward</p>
+                </div>
+                <ChevronRight size={18} className="text-[#A8A8A8] shrink-0" />
+              </button>
+              <button
+                onClick={() => setView('progress-child-list')}
+                className="w-full flex items-center gap-4 px-5 py-4 border-b border-[#F3F4F6] hover:bg-[#FAFAFA] transition-colors text-left"
+              >
+                <span className="text-[24px] shrink-0">🎯</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-[14px]">Progress Belajar</p>
+                  <p className="text-[12px] text-[#737373] mt-0.5">Sesuaikan materi yang udah diajarin di sekolah</p>
                 </div>
                 <ChevronRight size={18} className="text-[#A8A8A8] shrink-0" />
               </button>

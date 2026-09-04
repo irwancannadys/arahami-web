@@ -26,12 +26,13 @@ export interface Schedule {
 }
 
 export interface Topic {
-  id:        string
-  subject:   string
-  topicName: string
-  source:    string
-  isDone:    boolean
-  order:     number
+  id:          string
+  subject:     string
+  topicName:   string
+  source:      string
+  isDone:      boolean
+  order:       number
+  isUnlocked?: boolean  // ortu bisa kunci topik yang belum diajarin di sekolah — undefined/true = kebuka (default, backward compatible)
 }
 
 export interface QuizAnswerDetail {
