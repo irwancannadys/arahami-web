@@ -145,7 +145,7 @@
 | 22 | Deploy OCR service ke Railway | 🔶 File prep selesai (`requirements.txt` pinned, `Procfile`, `.python-version`) — belum di-deploy |
 | 23 | Setup Vercel project + env vars + first deploy | ✅ Live di `arahami-web.vercel.app` |
 | 24 | Fix `firebase-admin`/`jose` ESM crash di Vercel production (`generate-topics`/`analyze-photo`/`generate-tips`/`notifications/send` sempat 500 terus di production meski aman di lokal) | ✅ Fix: pin `jose@4.15.9` via `overrides` di `package.json` — lihat detail di bawah |
-| 25 | Mobile integration — Android hit web API routes | ❌ |
+| 25 | Mobile integration — Android hit web API routes | ✅ `QuizRepositoryImpl` hit `/api/ai/generate-quiz` real (bukan dummy lagi), lihat `ANDROID_PHASE2.md` |
 | 26 | Firestore composite index buat query `topics` (`whereEqualTo("subject")` + `orderBy("order")`) — index-nya belum pernah dibuat sejak awal, bikin Android Home gagal load mapel hari ini (error ke-swallow, keliatannya kayak "jadwal kosong" padahal query-nya nge-crash) | ✅ Deploy via `firestore.indexes.json` + `firebase deploy --only firestore:indexes` (checked-in, bukan klik manual di console) |
 | 27 | `generate-quiz` auth: shared secret (`API_SECRET`) → Firebase ID Token, nutup residual risk terakhir dari task 20 | ✅ Android migrasi ke Firebase Anonymous Auth (bukan Custom Auth Token) — child tetap login 4-digit code, tapi sekalian sign-in anonymous di background buat dapetin identitas Firebase asli. `checkApiSecret` dihapus total dari `lib/gemini.ts` |
 
@@ -171,7 +171,7 @@
 | ~~API secret `arahami-secret-2026` hardcoded di client~~ | ✅ Fixed 2026-08-23 — 4 route parent-facing pindah ke Firebase ID Token, secret literal dihapus dari semua client call site |
 | ~~`generate-quiz` masih pakai shared-secret (`API_SECRET`)~~ | ✅ Fixed — Android sekarang sign-in Firebase Anonymous Auth abis login PIN, `generate-quiz` pindah ke `checkAuth` (ID Token) kayak 4 route lain. `API_SECRET` dihapus total dari env + kode (web & Android) |
 | Firestore Rules baru di-scope, belum 100% aman untuk child subtree | 🟡 Anonymous Auth (di atas) BELUM otomatis benerin ini — UID anonymous gak terikat ke `childId` tertentu, jadi rules gak bisa langsung pakai `request.auth.uid` buat scope `/children/{childId}/**`. Masih `allow read, write: if true`. Perlu desain terpisah (misal custom claims childId↔UID) kalau mau dibenerin. Parent data (`/users/{uid}`) sudah dikunci penuh ke owner. |
-| Detail sesi kuis (teks soal + jawaban anak + jawaban benar) tidak tersedia | 🔴 Android hanya simpan `answers: ["CORRECT","WRONG",...]` ke Firestore. Perlu update Android agar simpan `{ questionText, userAnswer, correctAnswer, isCorrect }[]` per soal. Web modal sudah siap menampilkan jika data ada. |
+~~Detail sesi kuis (teks soal + jawaban anak + jawaban benar) tidak tersedia~~ | ✅ Fixed — Android (`QuizAnswerFs.kt`) sekarang simpan `{ questionText, userAnswer, correctAnswer, correct }[]` per soal ke Firestore, field name match persis sama `QuizAnswerDetail` di `lib/types/index.ts`. Web modal (`laporan/page.tsx`) sudah baca `session.answerDetails` dengan fallback ke `session.answers` (data lama) |
 | Kelas 6 MTK kadang generate topik tidak relevan | 🟡 Minor |
 | `ind.traineddata` perlu di-gitignore | ✅ Sudah di-`.gitignore`, gak pernah ke-commit — false alarm, dicek ulang 2026-08-22 |
 | Kualitas konten `openai/gpt-oss-120b` (Bahasa Indonesia) belum di-evaluasi mendalam | 🟡 Cuma dicek format JSON valid, belum baca kualitas isi tips/topik secara teliti |
@@ -179,16 +179,15 @@
 
 ---
 
-## ⚠️ Mobile — Dikerjakan setelah web selesai
-| Item | Catatan |
+## ⚠️ Mobile — status per sesi terakhir (detail lengkap di `ANDROID_PHASE2.md`)
+| Item | Status |
 |---|---|
-| Android: lepas parent mode — web take over sepenuhnya | Mode ortu di Android diarahkan ke web |
-| Android: swap `QuizRepositoryDummy` → `QuizRepositoryImpl` | Hit `/api/ai/generate-quiz` di Vercel |
-| Android: `OnboardingViewModel` → hit `/api/ai/generate-topics` | Ganti dari hardcoded CurriculumData |
-| Android: tambah `x-api-secret` header (cuma untuk `generate-quiz`, 4 route lain sekarang pakai Firebase ID Token) | Nilai dari env (`BuildConfig.API_SECRET`), bukan hardcoded — sudah begini di Android |
-| Android: Foto Buku → call Python OCR service (Railway URL) | Setelah Railway deploy |
-| Android: baca `enabledRewards[]` dari child doc untuk filter preset reward | Agar Setting Reward di web efektif |
-| Android: update QuizSession Firestore — simpan detail per soal | Fix agar web bisa tampilkan teks soal + jawaban di detail sesi |
+| Android: lepas parent mode — web take over sepenuhnya | ✅ Done — `ui/parent/*` + `ui/modeselect/*` dihapus total dari Android |
+| Android: swap `QuizRepositoryDummy` → `QuizRepositoryImpl` | ✅ Done — hit `/api/ai/generate-quiz` real |
+| Android: auth ke `generate-quiz` | ✅ Done — bukan `x-api-secret` lagi, migrasi ke Firebase Anonymous Auth + Bearer ID Token (task 31 `ANDROID_PHASE2.md`) |
+| Android: baca `enabledRewards[]` dari child doc untuk filter preset reward | ✅ Done |
+| Android: update QuizSession Firestore — simpan detail per soal | ✅ Done |
+| Android: `OnboardingViewModel` hit `generate-topics` / Foto Buku → OCR service | ⏸ Obsolete — onboarding sepenuhnya pindah ke web, Android gak punya UI ini lagi |
 
 ---
 
