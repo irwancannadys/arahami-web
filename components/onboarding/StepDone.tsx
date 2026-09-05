@@ -1,8 +1,14 @@
+import { useState } from 'react'
+
 interface Props { code: string; onGoToDashboard: () => void }
 
 export function StepDone({ code, onGoToDashboard }: Props) {
+  const [copied, setCopied] = useState(false)
+
   async function copyCode() {
     await navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -27,7 +33,7 @@ export function StepDone({ code, onGoToDashboard }: Props) {
           onClick={copyCode}
           className="w-full py-2.5 rounded-xl border border-[#0095F6] text-[#0095F6] text-[14px] font-semibold hover:bg-[#E0F2FE] transition-colors"
         >
-          Salin Kode
+          {copied ? '✓ Tersalin!' : 'Salin Kode'}
         </button>
         <button
           onClick={onGoToDashboard}

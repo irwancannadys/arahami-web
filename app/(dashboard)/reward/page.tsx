@@ -105,7 +105,7 @@ function RewardCard({ reward, onClick }: { reward: RewardWithChild; onClick: () 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
 
 function DetailModal({
-  reward, session, loadingSession, onClose, onAction, actionLoading,
+  reward, session, loadingSession, onClose, onAction, actionLoading, pendingAction,
 }: {
   reward:         RewardWithChild
   session:        QuizSession | null | undefined
@@ -113,6 +113,7 @@ function DetailModal({
   onClose:        () => void
   onAction:       (status: 'APPROVED' | 'REJECTED', note: string) => Promise<void>
   actionLoading:  boolean
+  pendingAction:  'APPROVED' | 'REJECTED' | null
 }) {
   const [note, setNote]  = useState(reward.parentNote ?? '')
   const { emoji, label } = splitEmoji(reward.request)
@@ -182,16 +183,18 @@ function DetailModal({
             <button
               onClick={() => onAction('REJECTED', note)}
               disabled={actionLoading}
-              className="flex-1 py-3 rounded-xl border-2 border-[#EF4444] text-[#EF4444] text-[14px] font-bold hover:bg-[#FEF2F2] disabled:opacity-50 transition-colors"
+              className="flex-1 py-3 rounded-xl border-2 border-[#EF4444] text-[#EF4444] text-[14px] font-bold hover:bg-[#FEF2F2] disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2"
             >
+              {pendingAction === 'REJECTED' && <span className="w-4 h-4 border-2 border-[#EF4444]/30 border-t-[#EF4444] rounded-full animate-spin" />}
               Tolak ✕
             </button>
             <button
               onClick={() => onAction('APPROVED', note)}
               disabled={actionLoading}
-              className="flex-1 py-3 rounded-xl bg-[#22C55E] text-white text-[14px] font-bold hover:bg-[#16A34A] disabled:opacity-50 transition-colors"
+              className="flex-1 py-3 rounded-xl bg-[#22C55E] text-white text-[14px] font-bold hover:bg-[#16A34A] disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2"
             >
-              {actionLoading ? 'Menyimpan...' : 'Setujui ✓'}
+              {pendingAction === 'APPROVED' && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              Setujui ✓
             </button>
           </div>
         ) : (
@@ -236,6 +239,7 @@ export default function RewardPage() {
   const [selectedReward, setSelectedReward] = useState<RewardWithChild | null>(null)
   const [loadingSession, setLoadingSession] = useState(false)
   const [actionLoading,  setActionLoading]  = useState(false)
+  const [pendingAction,  setPendingAction]  = useState<'APPROVED' | 'REJECTED' | null>(null)
   const [activeTab,      setActiveTab]      = useState<Tab>('Menunggu')
   const [loadingRewards, setLoadingRewards] = useState(true)
 
@@ -280,6 +284,7 @@ export default function RewardPage() {
   async function handleAction(status: 'APPROVED' | 'REJECTED', note: string) {
     if (!selectedReward || !user || !child) return
     setActionLoading(true)
+    setPendingAction(status)
     try {
       await updateDoc(
         doc(db, 'users', user.uid, 'children', child.id, 'rewards', selectedReward.id),
@@ -308,6 +313,7 @@ export default function RewardPage() {
       setSelectedReward(null)
     } finally {
       setActionLoading(false)
+      setPendingAction(null)
     }
   }
 
@@ -353,6 +359,7 @@ export default function RewardPage() {
           onClose={() => setSelectedReward(null)}
           onAction={handleAction}
           actionLoading={actionLoading}
+          pendingAction={pendingAction}
         />
       )}
     </div>

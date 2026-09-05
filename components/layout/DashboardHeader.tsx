@@ -43,7 +43,8 @@ function Avatar({ name, photoURL }: { name: string; photoURL: string | null }) {
 export function DashboardHeader({ title, subtitle }: Props) {
   const { user }          = useAuthContext()
   const router            = useRouter()
-  const [open, setOpen]   = useState(false)
+  const [open, setOpen]           = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   const dropdownRef       = useRef<HTMLDivElement>(null)
 
   // Close on outside click
@@ -58,10 +59,15 @@ export function DashboardHeader({ title, subtitle }: Props) {
   }, [open])
 
   async function handleLogout() {
-    setOpen(false)
-    await signOut(auth)
-    document.cookie = 'arahami_auth=; path=/; max-age=0'
-    router.push('/login')
+    setLoggingOut(true)
+    try {
+      await signOut(auth)
+      document.cookie = 'arahami_auth=; path=/; max-age=0'
+      router.push('/login')
+    } finally {
+      setOpen(false)
+      setLoggingOut(false)
+    }
   }
 
   const displayName = user?.displayName ?? user?.email ?? 'User'
@@ -106,9 +112,12 @@ export function DashboardHeader({ title, subtitle }: Props) {
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] font-medium text-[#EF4444] hover:bg-[#FEF2F2] transition-colors"
+                  disabled={loggingOut}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] font-medium text-[#EF4444] hover:bg-[#FEF2F2] disabled:opacity-50 transition-colors"
                 >
-                  <LogOut size={16} className="text-[#EF4444]" />
+                  {loggingOut
+                    ? <span className="w-4 h-4 border-2 border-[#EF4444]/30 border-t-[#EF4444] rounded-full animate-spin" />
+                    : <LogOut size={16} className="text-[#EF4444]" />}
                   Keluar
                 </button>
               </div>

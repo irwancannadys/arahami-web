@@ -32,6 +32,7 @@ export function StepTopicSource({ data, onChange }: Props) {
     if (data.topicSource !== 'PHOTO') return null
     return allSubjects.find(s => !data.confirmedSubjects.includes(s)) ?? null
   })
+  const [uploadingSubject, setUploadingSubject] = useState<string | null>(null)
 
   function selectSource(value: string) {
     onChange({ topicSource: value, confirmedSubjects: [], photosBySubject: {} })
@@ -43,8 +44,13 @@ export function StepTopicSource({ data, onChange }: Props) {
     const existing = data.photosBySubject[subject] ?? []
     const canAdd   = MAX_PHOTOS - existing.length
     if (canAdd <= 0) return
-    const newPhotos = await Promise.all(Array.from(files).slice(0, canAdd).map(fileToBase64))
-    onChange({ photosBySubject: { ...data.photosBySubject, [subject]: [...existing, ...newPhotos] } })
+    setUploadingSubject(subject)
+    try {
+      const newPhotos = await Promise.all(Array.from(files).slice(0, canAdd).map(fileToBase64))
+      onChange({ photosBySubject: { ...data.photosBySubject, [subject]: [...existing, ...newPhotos] } })
+    } finally {
+      setUploadingSubject(null)
+    }
   }
 
   function removePhoto(subject: string, idx: number) {
@@ -137,13 +143,17 @@ export function StepTopicSource({ data, onChange }: Props) {
                   <div className="flex items-center justify-between">
                     <p className="text-[13px] font-semibold text-[#0095F6]">{label}</p>
                     {photos.length < MAX_PHOTOS ? (
-                      <label className="px-3 py-1.5 rounded-lg bg-[#F5F5F5] border border-[#DBDBDB] text-[12px] font-semibold cursor-pointer hover:bg-[#EBEBEB] transition-colors">
+                      <label className={`px-3 py-1.5 rounded-lg bg-[#F5F5F5] border border-[#DBDBDB] text-[12px] font-semibold hover:bg-[#EBEBEB] transition-colors inline-flex items-center gap-1.5 ${uploadingSubject === subject ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}`}>
+                        {uploadingSubject === subject && (
+                          <span className="w-3 h-3 border-2 border-[#DBDBDB] border-t-[#0095F6] rounded-full animate-spin" />
+                        )}
                         + Upload
                         <input
                           type="file"
                           accept="image/*"
                           multiple
                           className="hidden"
+                          disabled={uploadingSubject === subject}
                           onChange={e => handleFileChange(subject, e.target.files)}
                         />
                       </label>
