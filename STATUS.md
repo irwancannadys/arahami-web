@@ -1,6 +1,6 @@
 # Arahami — Project Status
 
-> Last updated: 2026-09-04
+> Last updated: 2026-09-06
 > File ini satu-satunya sumber status project (gabungan Android + Web, dua repo terpisah, konten identik di keduanya). Untuk arsitektur/konvensi teknis lihat `CLAUDE.md` (Android) / `AGENTS.md` (Web). Untuk konsep produk awal lihat `KONSEP.md`.
 
 ---
@@ -30,6 +30,7 @@ Backend sepenuhnya shared: **Firebase** (Auth, Firestore, FCM) + **AI Groq** (`o
 - AI generate-quiz **real**, auth Firebase Anonymous Auth + Bearer ID Token (bukan shared-secret lagi)
 - FCM: token registration + notifikasi foreground
 - Parent mode (`ui/parent/*`, `ui/modeselect/*`) **dihapus total** — udah gak ada jejak di Android
+- **Progress Belajar (topic pacing manual)** — `Topic.isUnlocked` (default `true`), ortu toggle per topik di web. Bottom sheet pilih topik: topik yang di-uncentang ortu **tetap keliatan** (fair, anak tau ke depannya bakal belajar apa) tapi abu-abu + ikon gembok, non-interactive. Halaman baru `ui/child/progress/ProgressBelajarScreen` — progress per mapel per hari (tab hari Senin–Minggu/weekend, grid 3-kolom niru `SubjectGrid` Home), entry point tile ke-4 di `HomeChildQuickActionsRow`. Home grid "susulan": mapel yang belum kelar dari hari sebelumnya numpang tampil hari ini juga (selama masih ada topik `isUnlocked` & belum `isDone`), ditandai strip section "↩ Susulan" nempel di tepi bawah kartu (bg ungu muda), ring progress "hari ini" tetap cuma ngitung mapel yang emang dijadwalin hari itu
 
 ### Web — Mode Ortu
 - Login Google Sign-In + protected routes
@@ -38,6 +39,8 @@ Backend sepenuhnya shared: **Firebase** (Auth, Firestore, FCM) + **AI Groq** (`o
 - Belajar Weekend per anak (toggle + jadwal Sabtu/Minggu + validasi)
 - FCM: reward approve/tolak → anak, kuis selesai → ortu
 - Live di Vercel, build production bersih
+- **Progress Belajar** — menu baru di Pengaturan (sejajar Edit Anak/Tambah Anak, bukan tab nempel), alur Pilih Anak → checklist topik per mapel. Staged-changes di state lokal dulu (`pending`), baru `writeBatch` sekali pas Simpan (hindari race condition), tombol Simpan/Batal selalu keliatan (disabled kalau gak ada perubahan), dialog konfirmasi & validasi custom (bukan `alert()`/`confirm()` bawaan browser), validasi block kalau mau uncheck topik terakhir yang tercentang di satu mapel
+- Loading states dibenerin merata — Beranda sempet bolong total (skeleton Tips Parenting section gak ada sama sekali di branch `isLoading`), tombol Reward (Setujui/Tolak) & Logout & upload topik sekarang pakai spinner + teks asli (bukan ganti jadi teks lain), copy kode anak dikasih feedback "✓ Tersalin!"
 
 ### Integrasi Android ↔ Web (yang paling sering jadi sumber bug, semua udah beres)
 - **Detail sesi kuis** — Android simpan `{questionText, userAnswer, correctAnswer, correct}[]` per soal ke Firestore, field name match persis sama tipe TypeScript web, modal Laporan udah nampilin
@@ -73,8 +76,14 @@ Urut prioritas:
 
 ---
 
-## 4. Fix Terakhir (sesi 2026-09-04, belum sempat ke-log di commit sebelumnya)
+## 4. Fix Terakhir
 
+### Sesi 2026-09-06
+- **Android** — Bug dari testing device/emulator asli buat halaman `ProgressBelajarScreen`: kartu per-mapel kegedean (`aspectRatio(1f)` maksa kotak penuh di grid 3-kolom, banyak ruang kosong) — dihapus, layout diganti `Row` (icon sejajar nama, bukan numpuk) biar tinggi ngikutin konten. Font kekecilan di tab hari (13sp→17sp) & kartu mapel (15sp→18sp) dibesarin.
+- **Android** — Susulan footer strip di Home (`SubjectGridCard`) di-porting dari mockup ke kode asli: sebelumnya masih nempel teks inline di subtitle ("↩ Susulan · N topik"), sekarang jadi strip section sendiri nempel di tepi bawah kartu (bg ungu muda, teks "↩ Susulan" doang), kartu tetap tinggi 200dp.
+- **Android** — Label Home "Yuk Belajar Hari Ini! 📚" dibesarin & bold (22sp ExtraBold, warna teks utama) biar lebih menarik, casing diganti dari ALL CAPS ke Title Case.
+
+### Sesi 2026-09-04
 - **Android** — Card test TTS ("Bacain soalnya" tanpa lewat Quiz) di `HomeChildScreen.kt` ternyata gak di-gate `BuildConfig.DEBUG`, ikut nempel di APK **release/production**. Sudah dihapus total + 8 import unused ikut dibersihin.
 - **Android** — `.kotlin/` build cache dulu sempet ke-track di git (3 file cache nyempil). Sudah di-`.gitignore` + untrack.
 
